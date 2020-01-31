@@ -92,7 +92,7 @@ m.key = function(n,z)
       _menu.redraw()
     elseif n==3 and z==1 then
       m.stage="update"
-      get_update()
+      --get_update()
     end
   elseif m.stage=="update" then
     if n==2 and z==1 then
