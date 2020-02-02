@@ -21,8 +21,8 @@
 int key_fd;
 pthread_t key_p;
 
-int enc_fd[3];
-pthread_t enc_p[3];
+int enc_fd[4];
+pthread_t enc_p[4];
 
 void *key_check(void *);
 void *enc_check(void *);
@@ -60,10 +60,11 @@ void gpio_init() {
         }
     }
 
-    char *enc_filenames[3] = {"/dev/input/by-path/platform-soc:knob1-event",
+    char *enc_filenames[4] = {"/dev/input/by-path/platform-soc:knob1-event",
                               "/dev/input/by-path/platform-soc:knob2-event",
-                              "/dev/input/by-path/platform-soc:knob3-event"};
-    for(int i=0; i < 3; i++) {
+                              "/dev/input/by-path/platform-soc:knob3-event",
+                              "/dev/input/by-path/platform-soc:knob4-event"};
+    for(int i=0; i < 4; i++) {
         enc_fd[i] = open_and_grab(enc_filenames[i], O_RDONLY);
         if(enc_fd[i] > 0) {
             int *arg = malloc(sizeof(int));
@@ -80,6 +81,7 @@ void gpio_deinit() {
     pthread_cancel(enc_p[0]);
     pthread_cancel(enc_p[1]);
     pthread_cancel(enc_p[2]);
+    pthread_cancel(enc_p[3]);
 }
 
 void *enc_check(void *x) {
@@ -88,11 +90,11 @@ void *enc_check(void *x) {
     int rd;
     unsigned int i;
     struct input_event event[64];
-    int dir[3] = {1,1,1};
-    clock_t now[3];
-    clock_t prev[3];
+    int dir[4] = {1,1,1,1};
+    clock_t now[4];
+    clock_t prev[4];
     clock_t diff;
-    prev[0] = prev[1] = prev[2] = clock();
+    prev[0] = prev[1] = prev[2] = prev[3] = clock();
 
     while(1) {
         rd = read(enc_fd[n], event, sizeof(struct input_event) * 64);
