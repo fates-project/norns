@@ -12,6 +12,7 @@ local function check_newest()
   print("checking for update")
   norns.system_cmd( [[curl -s \
       https://api.github.com/repos/fates-project/norns/releases/latest \
+<<<<<<< HEAD
 =======
   print("must update manually")
   -- norns.system_cmd( [[curl -s \
@@ -21,6 +22,8 @@ local function check_newest()
 >>>>>>> Revert "fates tweaks"
       https://api.github.com/repos/monome/norns/releases/latest \
 >>>>>>> fates tweaks
+=======
+>>>>>>> update update url
       | grep "browser_download_url.*" \
       | cut -d : -f 2,3 \
       | tr -d \"]],
@@ -103,7 +106,7 @@ m.key = function(n,z)
       _menu.redraw()
     elseif n==3 and z==1 then
       m.stage="update"
-      --get_update()
+      get_update()
     end
   elseif m.stage=="update" then
     if n==2 and z==1 then
