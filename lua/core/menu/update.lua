@@ -7,23 +7,9 @@ local function checked() print("what??") end
 local function get_update_2() end
 
 local function check_newest()
-<<<<<<< HEAD
-<<<<<<< HEAD
   print("checking for update")
   norns.system_cmd( [[curl -s \
       https://api.github.com/repos/fates-project/norns/releases/latest \
-<<<<<<< HEAD
-=======
-  print("must update manually")
-  -- norns.system_cmd( [[curl -s \
-=======
-  print("checking for update")
-  norns.system_cmd( [[curl -s \
->>>>>>> Revert "fates tweaks"
-      https://api.github.com/repos/monome/norns/releases/latest \
->>>>>>> fates tweaks
-=======
->>>>>>> update update url
       | grep "browser_download_url.*" \
       | cut -d : -f 2,3 \
       | tr -d \"]],
