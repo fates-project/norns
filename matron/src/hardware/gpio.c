@@ -63,7 +63,7 @@ void gpio_init() {
 
     char *enc_filenames[4] = {"/dev/input/by-path/platform-soc:knob1-event",
                               "/dev/input/by-path/platform-soc:knob2-event",
-                              "/dev/input/by-path/platform-soc:knob3-event"},
+                              "/dev/input/by-path/platform-soc:knob3-event",
                               "/dev/input/by-path/platform-soc:knob4-event"};
     for (int i = 0; i < 4; i++) {
         enc_fd[i] = open_and_grab(enc_filenames[i], O_RDONLY);
