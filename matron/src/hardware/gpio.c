@@ -82,6 +82,7 @@ void gpio_deinit() {
     pthread_cancel(enc_p[0]);
     pthread_cancel(enc_p[1]);
     pthread_cancel(enc_p[2]);
+    pthread_cancel(enc_p[3]);
 }
 
 void *enc_check(void *x) {
