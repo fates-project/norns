@@ -9,7 +9,7 @@ local function get_update_2() end
 local function check_newest()
   print("checking for update")
   norns.system_cmd( [[curl -s \
-      https://api.github.com/repos/monome/norns/releases/latest \
+      https://api.github.com/repos/fates-project/norns/releases/latest \
       | grep "browser_download_url.*" \
       | cut -d : -f 2,3 \
       | tr -d \"]],
