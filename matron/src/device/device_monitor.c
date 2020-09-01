@@ -230,17 +230,43 @@ void handle_device(struct udev_device *dev) {
 device_t check_dev_type(struct udev_device *dev) {
     device_t t = DEV_TYPE_INVALID;
     const char *node = udev_device_get_devnode(dev);
+	const char *subsys = udev_device_get_subsystem(dev);
+
+    const char *device_product = udev_device_get_property_value(dev, "ID_MODEL");
+	fprintf(stderr, "product: %s\n", device_product);
+
+    const char *device_vendor = udev_device_get_property_value(dev, "ID_VENDOR");
+	fprintf(stderr, "vendor: %s\n", device_vendor);
+
+    const char *device_serial = udev_device_get_property_value(dev, "ID_SERIAL_SHORT");
+	fprintf(stderr, "serial: %s\n", device_serial);	
 
     if (node) {
         // for now, just get USB devices.
         // eventually we might want to use this same system for GPIO, &c...
         if (udev_device_get_parent_with_subsystem_devtype(dev, "usb", NULL)) {
+
+            // if TTY check product info
+            if (strcmp(subsys, "tty") == 0) {
+				if (strcmp(device_vendor, "monome") == 0) {
+					t = DEV_TYPE_MONOME;
+				} else if (strcmp(device_product, "crow:_telephone_line") == 0 && strcmp(device_vendor, "monome___whimsical_raps") == 0){
+					t = DEV_TYPE_CROW;
+				}
+			} else if (strcmp(subsys, "input") == 0)  { // if HID
+				t = DEV_TYPE_HID;
+			} else if (strcmp(subsys, "sound") == 0)  { // if MIDI
+				t = DEV_TYPE_MIDI;
+			}
+			/*
             for (int i = 0; i < DEV_TYPE_COUNT; i++) {
-                if (fnmatch(w[i].node_pattern, node, 0) == 0) {
+                //if (fnmatch(w[i].node_pattern, node, 0) == 0) {
+                if (fnmatch(w[i].sub_name, subsys, 0) == 0) {
                     t = i;
                     break;
                 }
             }
+            */
         }
     }
     return t;
