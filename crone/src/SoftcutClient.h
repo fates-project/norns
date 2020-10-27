@@ -18,12 +18,9 @@
 namespace crone {
     class SoftcutClient: public Client<2, 2> {
     public:
-        static constexpr float MaxRate = static_cast<float>(softcut::Resampler::OUT_BUF_FRAMES);
-        static constexpr float MinRate = static_cast<float>(softcut::Resampler::OUT_BUF_FRAMES * -1);
         enum { MaxBlockFrames = 2048};
         enum { BufFrames = 16777216 };
         enum { NumVoices = 6 };
-	enum { NumBuffers = 2 };
         typedef enum { SourceAdc=0 } SourceId;
         typedef Bus<2, MaxBlockFrames> StereoBus;
         typedef Bus<1, MaxBlockFrames> MonoBus;
@@ -34,9 +31,9 @@ namespace crone {
         // processors
         softcut::Softcut<NumVoices> cut;
         // main buffer
-        float buf[NumBuffers][BufFrames];
+        float buf[2][BufFrames];
         // buffer index for use with BufDiskWorker
-        int bufIdx[NumBuffers];
+        int bufIdx[2];
         // busses
         StereoBus mix;
         MonoBus input[NumVoices];
@@ -49,7 +46,6 @@ namespace crone {
         // enabled flags
         bool enabled[NumVoices];
         softcut::phase_t quantPhase[NumVoices];
-	float bufDur;
 
     private:
         void process(jack_nframes_t numFrames) override;

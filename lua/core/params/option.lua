@@ -8,7 +8,7 @@ Option.__index = Option
 
 local tOPTION = 2
 
-function Option.new(id, name, options, default, allow_pmap)
+function Option.new(id, name, options, default)
   local o = setmetatable({}, Option)
   o.t = tOPTION
   o.id = id
@@ -21,7 +21,6 @@ function Option.new(id, name, options, default, allow_pmap)
   o.default = default or 1
   o.selected = o.default
   o.action = function() end
-  if allow_pmap == nil then o.allow_pmap = true else o.allow_pmap = allow_pmap end
   return o
 end
 

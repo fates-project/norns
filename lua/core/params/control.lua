@@ -13,7 +13,7 @@ local tCONTROL = 3
 -- @param name
 -- @param controlspec
 -- @param formatter
-function Control.new(id, name, controlspec, formatter, allow_pmap)
+function Control.new(id, name, controlspec, formatter)
   local p = setmetatable({}, Control)
   p.t = tCONTROL
   if not controlspec then controlspec = ControlSpec.UNIPOLAR end
@@ -22,7 +22,6 @@ function Control.new(id, name, controlspec, formatter, allow_pmap)
   p.controlspec = controlspec
   p.formatter = formatter
   p.action = function(x) end
-  if allow_pmap == nil then p.allow_pmap = true else p.allow_pmap = allow_pmap end
 
   if controlspec.default then
     p.raw = controlspec:unmap(controlspec.default)
