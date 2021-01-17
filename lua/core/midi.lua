@@ -1,6 +1,5 @@
 --- midi devices
--- @classmod midi
--- @alias Midi
+-- @module midi
 
 local vport = require 'vport'
 
@@ -10,7 +9,7 @@ Midi.__index = Midi
 Midi.devices = {}
 Midi.vports = {}
 
-for i=1,4 do
+for i=1,16 do
   Midi.vports[i] = {
     name = "none",
     device = nil,
@@ -50,11 +49,11 @@ function Midi.new(id, name, dev)
 
   -- autofill next postiion
   local connected = {}
-  for i=1,4 do
+  for i=1,16 do
     table.insert(connected, Midi.vports[i].name)
   end
   if not tab.contains(connected, name) then
-    for i=1,4 do
+    for i=1,16 do
       -- assign device unless device is specialized virtual interface
       if Midi.vports[i].name == "none" and d.name ~= "virtual" then
         Midi.vports[i].name = d.name
@@ -184,7 +183,7 @@ end
 
 --- clear handlers.
 function Midi.cleanup()
-  for i=1,4 do
+  for i=1,16 do
     Midi.vports[i].event = nil
   end
 
@@ -356,7 +355,7 @@ function Midi.to_msg(data)
   return msg
 end
 
---- update devices.
+-- update devices.
 function Midi.update_devices()
   -- reset vports for existing devices
   for _,device in pairs(Midi.devices) do
@@ -364,7 +363,7 @@ function Midi.update_devices()
   end
 
   -- connect available devices to vports
-  for i=1,4 do
+  for i=1,16 do
     Midi.vports[i].device = nil
 
     for _, device in pairs(Midi.devices) do
@@ -376,7 +375,7 @@ function Midi.update_devices()
   end
 end
 
---- add a device.
+-- add a device.
 _norns.midi.add = function(id, name, dev)
   local d = Midi.new(id, name, dev)
   Midi.devices[id] = d
@@ -384,7 +383,7 @@ _norns.midi.add = function(id, name, dev)
   if Midi.add ~= nil then Midi.add(d) end
 end
 
---- remove a device.
+-- remove a device.
 _norns.midi.remove = function(id)
   if Midi.devices[id] then
     if Midi.devices[id].remove then
@@ -395,7 +394,7 @@ _norns.midi.remove = function(id)
   Midi.update_devices()
 end
 
---- handle a midi event.
+-- handle a midi event.
 _norns.midi.event = function(id, data)
   local d = Midi.devices[id]
 

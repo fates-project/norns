@@ -169,12 +169,16 @@ else
   norns.version.update = "000000"
 end
 
-
--- fetch (git clone)
-norns.fetch = function(url)
-  local status = os.execute("cd "..paths.code.."; git clone "..url)
-  if status then print("fetch: success. you may need to SYSTEM > RESET if the new project contains an engine")
-  else print("fetch: FAIL") end
+-- shutdown
+norns.shutdown = function()
+  print("SLEEP")
+  --TODO fade out screen then run the shutdown script
+  norns.state.clean_shutdown = true
+  norns.state.save()
+  pcall(cleanup)
+  audio.level_dac(0)
+  audio.headphone_gain(0)
+  os.execute("sleep 0.5; sudo shutdown now")
 end
 
 -- platform detection

@@ -1,6 +1,5 @@
 --- Script class
--- @classmod script
--- @alias Script
+-- @module script
 
 local Script = {}
 
@@ -62,6 +61,9 @@ Script.clear = function()
   -- clear crow functions
   crow.init()
 
+  -- clear keyboard handlers
+  keyboard.clear()
+
   -- clear last run
   norns.state.script = ''
   norns.state.name = 'none'
@@ -111,30 +113,23 @@ end
 --- load a script from the /scripts folder.
 -- @tparam string filename file to load. leave blank to reload current file.
 Script.load = function(filename)
-  local name, path, relative
+  local name, path
   if filename == nil then
     filename = norns.state.script
     name = norns.state.name
     path = norns.state.path
   else
-	if string.sub(filename,1,1) == "/" then
-	  relative = string.sub(filename,string.len(_path["dust"]))
-	else
-	  relative = filename
-	  filename = _path["dust"] .. filename
-	end
-
-	local t = tab.split(string.sub(relative,0,-5),"/")
-	if t[#t] == t[#t-1] then
-	  name = t[#t]
-	else
-	  name = t[#t-1].."/"..t[#t]
-	end
-  if #t==4 then name = t[2].."/"..name end -- dumb hack for 3-deep subfolers
-	path = string.sub(_path["dust"],0,-2)
-	for i = 1,#t-1 do path = path .. "/" .. t[i] end
-	--print("name "..name)
-	--print("final path "..path)
+    filename = string.sub(filename,1,1) == "/" and filename or _path["dust"]..filename
+    path, scriptname = filename:match("^(.*)/([^.]*).*$")
+    name = string.sub(path, string.len(_path["code"]) + 1)
+    
+    -- append scriptname to the name if it doesn't match directory name in case multiple scripts reside in the same directory
+    -- ex: we/study/study1, we/study/study2, ...
+    if string.sub(name, -#scriptname) ~= scriptname then
+      name_parts = tab.split(name, "/")
+      table.insert(name_parts, scriptname)
+      name = table.concat(name_parts, "/")
+    end
   end
 
   print("# script load: " .. filename)

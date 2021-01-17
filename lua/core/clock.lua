@@ -123,15 +123,17 @@ clock.set_source = function(source)
   end
 end
 
-
+--- get current time in beats
 clock.get_beats = function()
   return _norns.clock_get_time_beats()
 end
 
+--- get current tempo
 clock.get_tempo = function()
   return _norns.clock_get_tempo()
 end
 
+--- get current beat time in seconds
 clock.get_beat_sec = function(x)
   x = x or 1
   return 60.0 / clock.get_tempo() * x
@@ -233,9 +235,13 @@ function clock.add_params()
       norns.state.clock.link_quantum = x
     end)
   params:set_save("link_quantum", false)
-
+  local clock_table = {"off"}
+  for i = 1,16 do
+    local short_name = string.len(midi.vports[i].name) < 12 and midi.vports[i].name or util.acronym(midi.vports[i].name)
+    clock_table[i+1] = "port "..(i)..""..(midi.vports[i].name ~= "none" and (": "..short_name) or "")
+  end
   params:add_option("clock_midi_out", "midi out",
-      {"off", "port 1", "port 2", "port 3", "port 4"}, norns.state.clock.midi_out)
+      clock_table, norns.state.clock.midi_out)
   params:set_action("clock_midi_out", function(x) norns.state.clock.midi_out = x end)
   params:set_save("clock_midi_out", false)
   params:add_option("clock_crow_out", "crow out",
@@ -301,5 +307,35 @@ function clock.add_params()
 
 end
 
+
+clock.help = [[
+--------------------------------------------------------------------------------
+clock.run( func )             start a new coroutine with function [func]
+                              (returns) created id
+clock.cancel( id )            cancel coroutine [id]
+clock.sleep( time )           resume in [time] seconds
+clock.sync( beats )           resume at next sync quantum of value [beats]
+                                following to global tempo
+clock.get_beats()             (returns) current time in beats
+clock.get_tempo()             (returns) current tempo
+clock.get_beat_sec()          (returns) length of a single beat at current
+                                tempo in seconds
+--------------------------------------------------------------------------------
+-- example
+
+-- start a clock which calling function [loop]
+function init()
+  clock.run(loop)
+end
+
+-- this function loops forever, printing at 1 second intervals 
+function loop()
+  while true do:
+    print("so true")
+    clock.sleep(1)
+  end
+end
+--------------------------------------------------------------------------------
+]]
 
 return clock
