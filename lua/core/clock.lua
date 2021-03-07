@@ -225,7 +225,7 @@ function clock.add_params()
   params:set_action("clock_reset",
     function()
       local source = params:string("clock_source")
-      if source == "internal" then clock.internal.start(bpm)
+      if source == "internal" then clock.internal.start()
       elseif source == "link" then print("link reset not supported") end
     end)
   params:add_number("link_quantum", "link quantum", 1, 32, norns.state.clock.link_quantum)
@@ -323,14 +323,14 @@ clock.get_beat_sec()          (returns) length of a single beat at current
 --------------------------------------------------------------------------------
 -- example
 
--- start a clock which calling function [loop]
+-- start a clock with calling function [loop]
 function init()
   clock.run(loop)
 end
 
 -- this function loops forever, printing at 1 second intervals 
 function loop()
-  while true do:
+  while true do
     print("so true")
     clock.sleep(1)
   end
