@@ -13,10 +13,8 @@ local function check_newest()
   print("checking for update")
   if m.alt then print("stable and beta") end
   norns.system_cmd( [[curl -s \
-      https://api.github.com/repos/fates-project/norns/releases/latest \
-      | grep "browser_download_url.*" \
-      | cut -d : -f 2,3 \
-      | tr -d \"]],
+      https://raw.githubusercontent.com/fates-project/norns/main/releases.txt \
+      ]],
       checked)
 end
 
