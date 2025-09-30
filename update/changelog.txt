@@ -1,3 +1,52 @@
+# 250926
+
+# norns 2.9.3
+
+- NEW TAPE features: looping, scripting api, internal overhaul #1862 #1857
+@colinmcardell
+- NEW CM4S added support #1856 @ngwese
+- NEW screen events for image surfaces #1834 @tlubke
+- NEW feature/testing framework #1855 @colinmcardell
+- FIX tons of linting, checking, container, and docker fixes @dewb @colinmcardell
+- FIX util string.startswith nil check #1860 @tehn
+- FIX tab.readonly pairs #1859 @tylerlubke
+
+
+# 250530
+
+# norns 2.9.2
+
+- NEW jack port functions @ngwese
+- FIX audio error issues screen warning #1832 @tehn
+- FIX screen queue resize #1741 #1833 @tlubke
+- FIX screen drawing modes #1809 @skibu @tlubke
+- FIX CM4S detection #1835 @ngwese
+
+
+# 250414
+
+# norns 2.9.1
+
+- FIX serial mod hotfixes #1828 #1826 #1829 @midouest
+- ADD clock.link.get_number_of_peers() #1825 @robbielyman
+
+
+# 250406
+
+# norns 2.9.0
+
+- NEW generic USB serial support #1818 @midouest @tlubke
+- FIX alias font 04B_03 to norns.ttf #1799 @dstroud
+- FIX audio.file_info return values #1800 @jbonhag
+- FIX crow ii functions with zero arguments #1807 @midouest
+- FIX image buffer display #1795 @skibu
+- FIX metro stage bug #1812 @niksilver
+- FIX SELECT menu dir exclusion #1815 @niksilver
+- FIX script clear frees engine #1817 @tehn
+- ADD cdc arc support #1820 @tehn
+- ADD more platform detection #1821 @okyeron
+
+
 # 240911
 
 # norns 2.8.4

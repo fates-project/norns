@@ -16,7 +16,7 @@
 static int dev_start(union dev *d);
 
 union dev *dev_new(device_t type, const char *path, const char *name, bool multiport_device,
-                   unsigned int midi_port_index) {
+                   unsigned int midi_port_index, lua_State *l) {
 
     union dev *d = calloc(1, sizeof(union dev));
 
@@ -56,6 +56,11 @@ union dev *dev_new(device_t type, const char *path, const char *name, bool multi
             goto err_init;
         }
         break;
+    case DEV_TYPE_SERIAL:
+        if (dev_serial_init(d, l) < 0) {
+            goto err_init;
+        }
+        break;
     default:
         fprintf(stderr, "calling device.c:dev_new() with unknown device type; this is an error!");
         goto err_init;
@@ -72,7 +77,7 @@ err_init:
 void dev_delete(union dev *d) {
     int ret;
     // if the device has a start function, then it has an input thread that needs stopping
-    if (d->base.start != NULL) { 
+    if (d->base.start != NULL) {
         if (pthread_kill(d->base.tid, 0) == 0) {
             // device i/o thread still running
             ret = pthread_cancel(d->base.tid);
@@ -103,7 +108,7 @@ int dev_start(union dev *d) {
     int ret;
 
     if (d->base.start == NULL) {
-	    // fprintf(stderr, "device.c: no `start` function defined (no input); skipping\n");
+        // fprintf(stderr, "device.c: no `start` function defined (no input); skipping\n");
         return 0;
     }
 

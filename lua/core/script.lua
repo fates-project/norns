@@ -1,5 +1,6 @@
 --- Script class
 -- @module script
+-- @alias Script
 
 local hook = require 'core/hook'
 
@@ -9,6 +10,7 @@ local Script = {}
 -- ie redirect draw, key, enc functions, stop timers, clear engine, etc.
 Script.clear = function()
   print("# script clear")
+  _norns.free_engine()
 
   if cleanup ~= nil then
     local ok, err

@@ -15,8 +15,8 @@
 #include "stat.h"
 #include "weaver.h"
 
-#include "event_types.h"
 #include "event_custom.h"
+#include "event_types.h"
 
 //----------------------------
 //--- types and variables
@@ -134,10 +134,29 @@ MATRON_API void event_data_free(union event_data *ev) {
     case EVENT_SOFTCUT_RENDER:
         free(ev->softcut_render.data);
         break;
+    case EVENT_SERIAL_CONFIG:
+        free(ev->serial_config.path);
+        free(ev->serial_config.name);
+        free(ev->serial_config.vendor);
+        free(ev->serial_config.model);
+        free(ev->serial_config.serial);
+        free(ev->serial_config.interface);
+        break;
+    case EVENT_SERIAL_REMOVE:
+        free(ev->serial_remove.handler_id);
+        break;
+    case EVENT_SERIAL_EVENT:
+        free(ev->serial_event.data);
+        ev->serial_event.data = NULL;
+        break;
     case EVENT_CUSTOM:
         if (ev->custom.ops->free) {
             ev->custom.ops->free(ev->custom.value, ev->custom.context);
         }
+        break;
+    case EVENT_TAPE_PLAY_FILE:
+    case EVENT_TAPE_RECORD_FILE:
+        free(ev->tape_file.path);
         break;
     }
     free(ev);
@@ -214,7 +233,7 @@ static void handle_event(union event_data *ev) {
         break;
     case EVENT_STAT:
         w_handle_stat(ev->stat.disk, ev->stat.temp, ev->stat.cpu, ev->stat.cpu1, ev->stat.cpu2,
-            ev->stat.cpu3, ev->stat.cpu4);
+                      ev->stat.cpu3, ev->stat.cpu4);
         break;
     case EVENT_MONOME_ADD:
         w_handle_monome_add(ev->monome_add.dev);
@@ -273,6 +292,26 @@ static void handle_event(union event_data *ev) {
     case EVENT_POLL_SOFTCUT_PHASE:
         w_handle_poll_softcut_phase(ev->softcut_phase.idx, ev->softcut_phase.value);
         break;
+    case EVENT_TAPE_STATUS:
+        w_handle_tape_status(ev->tape_status.play_state,
+                             ev->tape_status.play_pos_s,
+                             ev->tape_status.play_len_s,
+                             ev->tape_status.rec_state,
+                             ev->tape_status.rec_pos_s,
+                             ev->tape_status.loop_enabled);
+        break;
+    case EVENT_TAPE_PLAY_FILE:
+        w_handle_tape_play_file(ev->tape_file.path);
+        break;
+    case EVENT_TAPE_RECORD_FILE:
+        w_handle_tape_rec_file(ev->tape_file.path);
+        break;
+    case EVENT_TAPE_PLAY_CLOSE:
+        w_handle_tape_play_file(NULL);
+        break;
+    case EVENT_TAPE_RECORD_CLOSE:
+        w_handle_tape_rec_file(NULL);
+        break;
     case EVENT_STARTUP_READY_OK:
         w_handle_startup_ready_ok();
         break;
@@ -306,6 +345,18 @@ static void handle_event(union event_data *ev) {
     case EVENT_SCREEN_REFRESH:
         w_handle_screen_refresh();
         break;
+    case EVENT_SERIAL_CONFIG:
+        w_handle_serial_config(ev->serial_config.path, ev->serial_config.name, ev->serial_config.vendor, ev->serial_config.model, ev->serial_config.serial, ev->serial_config.interface);
+        break;
+    case EVENT_SERIAL_ADD:
+        w_handle_serial_add(ev->serial_add.dev);
+        break;
+    case EVENT_SERIAL_REMOVE:
+        w_handle_serial_remove(ev->serial_remove.id, ev->serial_remove.handler_id);
+        break;
+    case EVENT_SERIAL_EVENT:
+        w_handle_serial_event(ev->serial_event.dev, ev->serial_event.id, ev->serial_event.data, ev->serial_event.len);
+        break;
     } /* switch */
 
     event_data_free(ev);
@@ -326,9 +377,9 @@ void handle_engine_report(void) {
 void event_handle_pending(void) {
     union event_data *ev = NULL;
     char done = 0;
-    while(!done) {    
+    while (!done) {
         pthread_mutex_lock(&evq.lock);
-        if (evq.size > 0) {     
+        if (evq.size > 0) {
             ev = evq_pop();
         } else {
             done = 1;

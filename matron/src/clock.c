@@ -1,6 +1,7 @@
 #include <math.h>
 #include <pthread.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -16,7 +17,7 @@
 static clock_source_t clock_source;
 
 void clock_init() {
-  clock_set_source(CLOCK_SOURCE_INTERNAL);
+    clock_set_source(CLOCK_SOURCE_INTERNAL);
 }
 
 void clock_reference_init(clock_reference_t *reference) {
@@ -139,4 +140,8 @@ void clock_set_source(clock_source_t source) {
 
     clock_source = source;
     clock_scheduler_reschedule_sync_events();
+}
+
+uint64_t clock_number_of_link_peers() {
+    return clock_link_number_of_peers();
 }

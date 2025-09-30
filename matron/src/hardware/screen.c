@@ -5,8 +5,8 @@
  */
 
 #include <assert.h>
-#include <cairo.h>
 #include <cairo-ft.h>
+#include <cairo.h>
 #include <fcntl.h>
 #include <linux/fb.h>
 #include <math.h>
@@ -17,28 +17,27 @@
 #include <string.h>
 
 #include "args.h"
-#include "events.h"
 #include "event_types.h"
-#include "screen.h"
-#include "screen_results.h"
+#include "events.h"
 #include "hardware/io.h"
 #include "hardware/screen.h"
 #include "hardware/screen/ssd1322.h"
+#include "screen.h"
+#include "screen_results.h"
 
-#define NUM_FONTS 68
+#define NUM_FONTS 69
 #define NUM_OPS 29
 
 static char font_path[NUM_FONTS][32];
 
-static float c[16] = {0,   0.066666666666667, 0.13333333333333, 0.2, 0.26666666666667, 0.33333333333333,
-                      0.4, 0.46666666666667,  0.53333333333333, 0.6, 0.66666666666667, 0.73333333333333,
-                      0.8, 0.86666666666667,  0.93333333333333, 1};
+static float c[16] = {0, 0.066666666666667, 0.13333333333333, 0.2, 0.26666666666667, 0.33333333333333,
+                      0.4, 0.46666666666667, 0.53333333333333, 0.6, 0.66666666666667, 0.73333333333333,
+                      0.8, 0.86666666666667, 0.93333333333333, 1};
 
 static cairo_operator_t ops[NUM_OPS] = {
     CAIRO_OPERATOR_OVER,
     CAIRO_OPERATOR_XOR,
     CAIRO_OPERATOR_ADD,
-    CAIRO_OPERATOR_SATURATE,
     CAIRO_OPERATOR_MULTIPLY,
     CAIRO_OPERATOR_SCREEN,
     CAIRO_OPERATOR_OVERLAY,
@@ -60,18 +59,17 @@ static cairo_operator_t ops[NUM_OPS] = {
     CAIRO_OPERATOR_DEST_IN,
     CAIRO_OPERATOR_DEST_OUT,
     CAIRO_OPERATOR_DEST_ATOP,
+    CAIRO_OPERATOR_SATURATE,
     CAIRO_OPERATOR_HSL_HUE,
     CAIRO_OPERATOR_HSL_SATURATION,
     CAIRO_OPERATOR_HSL_COLOR,
-    CAIRO_OPERATOR_HSL_LUMINOSITY
-};
+    CAIRO_OPERATOR_HSL_LUMINOSITY};
 
 static cairo_surface_t *surface;
 static cairo_surface_t *image;
 static cairo_t *cr;
 static cairo_t *cr_primary;
 static bool surface_may_have_color = false;
-
 
 static cairo_font_face_t *ct[NUM_FONTS];
 static FT_Library value;
@@ -111,14 +109,14 @@ void screen_init(void) {
 //-- screen commands
 
 void screen_text_right(const char *s) {
-    cairo_text_extents_t extents;    
+    cairo_text_extents_t extents;
     cairo_text_extents(cr, s, &extents);
     cairo_rel_move_to(cr, -extents.width, 0);
     cairo_show_text(cr, s);
 }
 
 void screen_text_center(const char *s) {
-    cairo_text_extents_t extents;    
+    cairo_text_extents_t extents;
     cairo_text_extents(cr, s, &extents);
     cairo_rel_move_to(cr, -extents.width * 0.5, 0);
     cairo_show_text(cr, s);
@@ -128,19 +126,18 @@ void screen_text_trim(char *s, double w) {
     cairo_text_extents_t extents;
     int n = strlen(s);
     do {
-	s[n--] = '\0';
-	cairo_text_extents(cr, s, &extents);
-	if (n <= 0) {
-	    return;
-	}
+        s[n--] = '\0';
+        cairo_text_extents(cr, s, &extents);
+        if (n <= 0) {
+            return;
+        }
     } while (extents.width > w);
-    cairo_show_text(cr, s);    
+    cairo_show_text(cr, s);
 }
-
 
 void screen_current_point() {
     double x, y;
-    cairo_get_current_point (cr, &x, &y);
+    cairo_get_current_point(cr, &x, &y);
     union screen_results_data *results = screen_results_data_new(SCREEN_RESULTS_CURRENT_POINT);
     results->current_point.x = x;
     results->current_point.y = y;
@@ -150,8 +147,8 @@ void screen_current_point() {
 //-------------------------------------------------------
 //-- static function definitions
 
-void init_font_faces(void) { 
-    
+void init_font_faces(void) {
+
     status = FT_Init_FreeType(&value);
     if (status != 0) {
         fprintf(stderr, "ERROR (screen) freetype init\n");
@@ -231,7 +228,7 @@ void init_font_faces(void) {
     //------------------
     // not specifically bitmap but added to the tail of the font list to avoid breaking changes
     strcpy(font_path[font_idx++], "Particle.ttf");
-
+    strcpy(font_path[font_idx++], "norns.ttf"); // alias 04B_03__.TTF to norns.ttf
     assert(font_idx == NUM_FONTS);
 
 #if 0 // is this really necessary?
@@ -275,7 +272,8 @@ void init_font_faces(void) {
 #ifdef NORNS_DESKTOP
     matron_io_t *io;
     TAILQ_FOREACH(io, &io_queue, entries) {
-        if (io->ops->type != IO_SCREEN) continue;
+        if (io->ops->type != IO_SCREEN)
+            continue;
         matron_fb_t *fb = (matron_fb_t *)io;
         screen_ops_t *fb_ops = (screen_ops_t *)io->ops;
         fb_ops->bind(fb, surface);
@@ -293,7 +291,8 @@ void screen_update(void) {
 #ifdef NORNS_DESKTOP
     matron_io_t *io;
     TAILQ_FOREACH(io, &io_queue, entries) {
-        if (io->ops->type != IO_SCREEN) continue;
+        if (io->ops->type != IO_SCREEN)
+            continue;
         matron_fb_t *fb = (matron_fb_t *)io;
         screen_ops_t *fb_ops = (screen_ops_t *)io->ops;
         fb_ops->paint(fb);
@@ -338,10 +337,10 @@ void screen_aa(int s) {
 
 void screen_brightness(int v) {
     if (v < 0) {
-        v=0;
+        v = 0;
     }
     if (v > 15) {
-        v=15;
+        v = 15;
     }
 
     // True range of pre-charge voltage, AKA "brightness" is 0-31.
@@ -349,28 +348,28 @@ void screen_brightness(int v) {
     // is limited and offset.
     v += 16;
 
-    ssd1322_set_brightness((uint8_t) v);
+    ssd1322_set_brightness((uint8_t)v);
 }
 
-void screen_contrast(int c){
+void screen_contrast(int c) {
     if (c < 0) {
-        c=0;
+        c = 0;
     }
     if (c > 255) {
-        c=255;
+        c = 255;
     }
-    ssd1322_set_contrast((uint8_t) c);
+    ssd1322_set_contrast((uint8_t)c);
 }
 
 void screen_gamma(double g) {
     if (g < 0.0) {
-        g=0;
+        g = 0;
     }
 
     ssd1322_set_gamma(g);
 }
 
-void screen_invert(int inverted){
+void screen_invert(int inverted) {
     ssd1322_set_display_mode((inverted != 0) ? SSD1322_DISPLAY_MODE_INVERT : SSD1322_DISPLAY_MODE_NORMAL);
 }
 
@@ -464,8 +463,8 @@ void screen_clear(void) {
 
 void screen_text_extents(const char *s) {
     cairo_text_extents_t extents;
-    cairo_text_extents(cr, s, &extents);   
-    union screen_results_data* results = screen_results_data_new(SCREEN_RESULTS_TEXT_EXTENTS);
+    cairo_text_extents(cr, s, &extents);
+    union screen_results_data *results = screen_results_data_new(SCREEN_RESULTS_TEXT_EXTENTS);
     results->text_extents.x_bearing = extents.x_bearing;
     results->text_extents.y_bearing = extents.y_bearing;
     results->text_extents.width = extents.width;
@@ -476,14 +475,14 @@ void screen_text_extents(const char *s) {
 }
 
 extern void screen_export_png(const char *s) {
-	cairo_surface_write_to_png(surface, s);
+    cairo_surface_write_to_png(surface, s);
 }
 
 extern void screen_export_screenshot(const char *s) {
     static cairo_surface_t *png;
     static cairo_t *temp; // for bg fill
     // width = 640 (128*4 pixels with 64 pixel black border)
-    // hieght = 384 (64*4 pixels plus border) 
+    // hieght = 384 (64*4 pixels plus border)
     png = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 640, 384);
     temp = cairo_create(png);
     // fill
@@ -493,20 +492,21 @@ extern void screen_export_screenshot(const char *s) {
     // copy big pixles
     uint32_t *src = (uint32_t *)cairo_image_surface_get_data(surface);
     uint32_t *dst = (uint32_t *)cairo_image_surface_get_data(png);
-    if (!src || !dst) return;
-    dst += 64 + 640*64;
-    for(int y=0;y<64;y++) {
-        for(int x=0;x<128;x++) {
+    if (!src || !dst)
+        return;
+    dst += 64 + 640 * 64;
+    for (int y = 0; y < 64; y++) {
+        for (int x = 0; x < 128; x++) {
             // FIXME: needs some sort of gamma correction?
             uint32_t p = *src++ | 0xFF000000; // FF for alpha
-            for(int xx=0;xx<4;xx++) {
-                *(dst+1920) = p;
-                *(dst+1280) = p;
-                *(dst+640) = p;
+            for (int xx = 0; xx < 4; xx++) {
+                *(dst + 1920) = p;
+                *(dst + 1280) = p;
+                *(dst + 640) = p;
                 *dst++ = p;
             }
         }
-        dst += 640*4 - 128*4;
+        dst += 640 * 4 - 128 * 4;
     }
     // cleanup
     cairo_destroy(temp);
@@ -539,7 +539,7 @@ void screen_display_png(const char *filename, double x, double y) {
 
 void screen_peek(int x, int y, int w, int h) {
     w = (w <= (128 - x)) ? w : (128 - x);
-    h = (h <= (64 - y))  ? h : (64 - y);
+    h = (h <= (64 - y)) ? h : (64 - y);
     char *buf = malloc(w * h);
     if (!buf) {
         return;
@@ -549,7 +549,7 @@ void screen_peek(int x, int y, int w, int h) {
     if (!data) {
         fprintf(stderr, "ERROR: screen_peek: no data\n");
         free(buf);
-	    return;
+        return;
     }
     char *p = buf;
     for (int j = y; j < y + h; j++) {
@@ -560,14 +560,14 @@ void screen_peek(int x, int y, int w, int h) {
     }
     union screen_results_data *results = screen_results_data_new(SCREEN_RESULTS_PEEK);
     results->peek.w = w;
-    results->peek.h = h;    
+    results->peek.h = h;
     results->peek.buf = buf;
     screen_results_post(results);
 }
 
 void screen_poke(int x, int y, int w, int h, unsigned char *buf) {
     w = (w <= (128 - x)) ? w : (128 - x);
-    h = (h <= (64 - y))  ? h : (64 - y);
+    h = (h <= (64 - y)) ? h : (64 - y);
     // NB: peek/poke do not actually access the CR,
     // but we do want to avoid torn values
     uint32_t *data = (uint32_t *)cairo_image_surface_get_data(surface);
@@ -596,7 +596,7 @@ void screen_translate(double x, double y) {
 }
 
 void screen_set_operator(int i) {
-    if (0 <= i && i <= 28) {
+    if (0 <= i && i <= 29) {
         cairo_set_operator(cr, ops[i]);
     }
 }
@@ -627,15 +627,20 @@ void screen_surface_free(screen_surface_t *s) {
     cairo_surface_destroy((cairo_surface_t *)s);
 }
 
-bool screen_surface_get_extents(screen_surface_t *s, screen_surface_extents_t *e) {
+void screen_surface_get_extents(screen_surface_t *s) {
+    union screen_results_data *results = screen_results_data_new(SCREEN_RESULTS_SURFACE_GET_EXTENTS);
     cairo_surface_t *image = (cairo_surface_t *)s;
-    e->width = cairo_image_surface_get_width(image);
-    e->height = cairo_image_surface_get_height(image);
-    return true;
+
+    results->surface_get_extents.extents.width = cairo_image_surface_get_width(image);
+    results->surface_get_extents.extents.height = cairo_image_surface_get_height(image);
+    screen_results_post(results);
 }
 
 void screen_surface_display(screen_surface_t *s, double x, double y) {
     cairo_surface_t *image = (cairo_surface_t *)s;
+
+    surface_may_have_color = true;
+
     int width = cairo_image_surface_get_width(image);
     int height = cairo_image_surface_get_height(image);
 
@@ -657,27 +662,30 @@ void screen_surface_display_region(screen_surface_t *s,
     cairo_restore(cr);
 }
 
-screen_context_t *screen_context_new(screen_surface_t *target) {
+void screen_context_new(screen_surface_t *target) {
+    union screen_results_data *results = screen_results_data_new(SCREEN_RESULTS_CONTEXT_NEW);
     cairo_surface_t *image = (cairo_surface_t *)target;
     // NOTE: cairo_create increases the ref count on image which avoids a double
     // free and allows the image and context to be freed in any order
     cairo_t *context = cairo_create(image);
     cairo_status_t status = cairo_status(context);
-    if (status == CAIRO_STATUS_SUCCESS) {
-        return (screen_context_t *)context;
+    if (status != CAIRO_STATUS_SUCCESS) {
+        fprintf(stderr, "context_new: %s (%d)\n", cairo_status_to_string(status), status);
+        context = NULL;
     }
-    fprintf(stderr, "context_new: %s (%d)\n", cairo_status_to_string(status), status);
-    return NULL;
 
-    return (screen_context_t *)context;
+    results->context_new.context = (screen_context_t *)context;
+    screen_results_post(results);
 }
 
 void screen_context_free(screen_context_t *context) {
     cairo_destroy((cairo_t *)context);
 }
 
-const screen_context_t *screen_context_get_current(void) {
-    return (const screen_context_t *)cr;
+void screen_context_get_current() {
+    union screen_results_data *results = screen_results_data_new(SCREEN_RESULTS_CONTEXT_GET_CURRENT);
+    results->context_get_current.context = (screen_context_t *)cr;
+    screen_results_post(results);
 }
 
 inline static void _screen_context_set(cairo_t *cr_incoming) {

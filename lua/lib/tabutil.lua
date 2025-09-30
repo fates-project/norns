@@ -1,4 +1,8 @@
 --- table utility
+--
+-- The [norns script reference](https://monome.org/docs/norns/reference/)
+-- has [examples for this module](https://monome.org/docs/norns/reference/lib/tabutil).
+--
 -- @module lib.tabutil
 -- @alias tab
 
@@ -45,7 +49,7 @@ end
 --- given a simple table of primitives, 
 --- "invert" it so that values become keys and vice versa.
 --- this allows more efficient checks on multiple values
--- @param t: a simple table
+-- @param t a simple table
 tab.invert = function(t)
   local inv = {}
   for k,v in pairs(t) do
@@ -189,22 +193,26 @@ function tab.load(sfile)
   local ftables,err = loadfile(sfile)
   if err then return _, err end
   local tables = ftables()
-  for idx = 1, #tables do
-    local tolinki = {}
-    for i, v in pairs(tables[idx]) do
-      if type(v) == "table" then
-        tables[idx][i] = tables[v[1]]
+  if tables ~= nil then
+    for idx = 1, #tables do
+      local tolinki = {}
+      for i, v in pairs(tables[idx]) do
+        if type(v) == "table" then
+          tables[idx][i] = tables[v[1]]
+        end
+        if type(i) == "table" and tables[i[1]] then
+          table.insert(tolinki, { i, tables[i[1]] })
+        end
       end
-      if type(i) == "table" and tables[i[1]] then
-        table.insert(tolinki, { i, tables[i[1]] })
+      -- link indices
+      for _, v in ipairs(tolinki) do
+        tables[idx][v[2]], tables[idx][v[1]] =  tables[idx][v[1]], nil
       end
     end
-    -- link indices
-    for _, v in ipairs(tolinki) do
-      tables[idx][v[2]], tables[idx][v[1]] =  tables[idx][v[1]], nil
-    end
+    return tables[1]
+  else
+    return nil
   end
-  return tables[1]
 end
 
 --- Create a read-only proxy for a given table.
@@ -214,22 +222,52 @@ function tab.readonly(params)
   local t = params.table
   local exceptions = params.except or {}
   local proxy = {}
-  local mt = {
-    __index = function(_, k)
-      if params.expose == nil or tab.contains(params.expose, k) then
-        return t[k]
+
+  local proxy_index = function(_, k)
+    if params.expose == nil or tab.contains(params.expose, k) then
+      return t[k]
+    end
+    return nil
+  end
+
+  local proxy_newindex = function (_, k, v)
+    if (tab.contains(exceptions, k)) then
+      t[k] = v
+    else
+      error("'"..k.."', a read-only key, cannot be re-assigned.")
+    end
+  end
+
+  local proxy_pairs = function(_)
+    local iter = function(_, key)
+      for k, v in next, t, key do
+        if proxy_index(nil, k) ~= nil then
+          return k, v
+        end
+        _, _ = next(t, k)
       end
       return nil
-    end,
-    __newindex = function (_,k,v)
-      if (tab.contains(exceptions, k)) then
-        t[k] = v
-      else
-        error("'"..k.."', a read-only key, cannot be re-assigned.")
+    end
+    return iter, t, nil
+  end
+
+  local proxy_ipairs = function(_)
+    local iter = function()
+      for i = 1, tab.count(t) do
+        if proxy_index(nil, i) ~= nil then
+          return i, t[i]
+        end
       end
-    end,
-    __pairs = function (_) return pairs(proxy) end,
-    __ipairs = function (_) return ipairs(proxy) end,
+      return nil
+    end
+    return iter
+  end
+
+  local mt = {
+    __index = proxy_index,
+    __newindex = proxy_newindex,
+    __pairs = proxy_pairs,
+    __ipairs = proxy_ipairs,
   }
   setmetatable(proxy, mt)
   return proxy
@@ -267,7 +305,7 @@ function tab.update(table_to_mutate, updated_values)
 end
 
 --- Create a new table with all values that pass the test implemented by the provided function.
--- @tparam table t table to check
+-- @tparam table tbl table to check
 -- @param condition callback function that tests all values of provided table, passes value and key as arguments
 -- @treturn table table with values that pass the test
 tab.select_values = function(tbl, condition)

@@ -10,7 +10,7 @@ _norns.crow.add = function(id, name, dev)
   norns.crow.dev = dev
   norns.crow.add(id, name, dev)
 
-  --- enable clock-in if needed
+  -- enable clock-in if needed
   if params.lookup["clock_source"] then
     if params:string("clock_source") == "crow" then
       norns.crow.clock_enable()
@@ -216,7 +216,8 @@ local crowSub = {
     end,
 
     __call = function(self, ...)
-        local qt = quote(...)
+        local nargs = select("#", ...)
+        local qt = nargs > 0 and quote(...) or ''
         norns.crow.send(self.str .. '(' .. qt .. ')')
     end,
 }

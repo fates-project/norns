@@ -1,9 +1,138 @@
 --- Audio class
+--
+-- The [norns script reference](https://monome.org/docs/norns/reference/)
+-- has [examples for this module](https://monome.org/docs/norns/reference/audio).
+--
 -- @module audio
+-- @alias Audio
 
 local cs = require 'controlspec'
+local Observable = require 'lib/container/observable'
+local tab = require 'tabutil'
 
 local Audio = {}
+
+--
+-- Tape state
+--
+
+-- play state constants
+local TAPE_PLAY_STATE_EMPTY = 0
+local TAPE_PLAY_STATE_READY = 1
+local TAPE_PLAY_STATE_PLAYING = 2
+local TAPE_PLAY_STATE_PAUSED = 3
+
+-- record state constants
+local TAPE_REC_STATE_EMPTY = 0
+local TAPE_REC_STATE_READY = 1
+local TAPE_REC_STATE_RECORDING = 2
+local TAPE_REC_STATE_PAUSED = 3
+
+-- default reserve seconds when computing diskfree
+local TAPE_DISK_RESERVE = 250
+
+-- underlying observable tape state; observers receive the full state table on each update
+local tape_state = Observable.new({
+  play = { state = TAPE_PLAY_STATE_EMPTY, pos = 0.0, len = 0.0, loop = true, file = nil },
+  rec  = { state = TAPE_REC_STATE_EMPTY, pos = 0.0, file = nil },
+})
+
+Audio.tape = {}
+
+--- get current tape state value
+-- Returns the same structure provided to subscribers.
+function Audio.tape.get_state()
+  return tape_state:value()
+end
+
+--- subscribe to tape state updates.
+-- @tparam any key unique key for this subscription (usually a table)
+-- @tparam function fn callback receiving full snapshot table
+function Audio.tape.subscribe(key, fn)
+  return tape_state:register(key, fn)
+end
+
+--- unsubscribe from tape state updates.
+-- @tparam any key unique key used when subscribing
+function Audio.tape.unsubscribe(key)
+  return tape_state:unregister(key)
+end
+
+-- engine callback handlers
+function Audio.tape._on_status(play_state, play_pos_s, play_len_s, rec_state, rec_pos_s, loop_enabled)
+  local current_state = Audio.tape.get_state()
+
+  local next_play = tab.gather(current_state.play, {})
+  next_play.state = play_state
+  next_play.pos = play_pos_s
+  next_play.len = play_len_s
+  next_play.loop = (loop_enabled ~= 0)
+
+  local next_rec = tab.gather(current_state.rec, {})
+  next_rec.state = rec_state
+  next_rec.pos = rec_pos_s
+
+  local next_state = tab.gather(current_state, {})
+  next_state.play = next_play
+  next_state.rec = next_rec
+
+  tape_state:set(next_state)
+end
+
+function Audio.tape._on_play_file(path)
+  local current_state = Audio.tape.get_state()
+  local filename = nil
+  if type(path) == 'string' then
+    filename = path:match("([^/\\]+)$")
+  end
+  local next_play = tab.gather(current_state.play, {})
+  next_play.file = filename
+  local updated_state = tab.gather(current_state, {
+    play = next_play
+  })
+  tape_state:set(updated_state)
+end
+
+function Audio.tape._on_rec_file(path)
+  local current_state = Audio.tape.get_state()
+  local filename = nil
+  if type(path) == 'string' then
+    filename = path:match("([^/\\]+)$")
+  end
+  local next_rec = tab.gather(current_state.rec, {})
+  next_rec.file = filename
+  local updated_state = tab.gather(current_state, {
+    rec = next_rec
+  })
+  tape_state:set(updated_state)
+end
+
+-- state constants for consumers
+Audio.tape.constants = {
+  TAPE_PLAY_STATE_EMPTY = TAPE_PLAY_STATE_EMPTY,
+  TAPE_PLAY_STATE_READY = TAPE_PLAY_STATE_READY,
+  TAPE_PLAY_STATE_PLAYING = TAPE_PLAY_STATE_PLAYING,
+  TAPE_PLAY_STATE_PAUSED = TAPE_PLAY_STATE_PAUSED,
+  TAPE_REC_STATE_EMPTY = TAPE_REC_STATE_EMPTY,
+  TAPE_REC_STATE_READY = TAPE_REC_STATE_READY,
+  TAPE_REC_STATE_RECORDING = TAPE_REC_STATE_RECORDING,
+  TAPE_REC_STATE_PAUSED = TAPE_REC_STATE_PAUSED,
+}
+
+-- tape state getters
+function Audio.tape_is_recording() return Audio.tape.get_state().rec.state == TAPE_REC_STATE_RECORDING end
+
+--- compute diskfree seconds at 48k/16-bit stereo
+-- reserve a small buffer by subtracting `reserve_s` seconds from `norns.disk`
+-- @tparam number reserve_s seconds to reserve
+-- @treturn number whole seconds available for new recording
+function Audio.tape_compute_diskfree(reserve_s)
+  local reserve = reserve_s or TAPE_DISK_RESERVE
+  if norns and norns.disk then
+    return math.floor((norns.disk - reserve) / .192)
+  end
+  return 0
+end
 
 --- set headphone gain.
 -- @tparam number gain (0-64)
@@ -158,9 +287,21 @@ Audio.tape_play_start = function()
   _norns.tape_play_start()
 end
 
+--- pause or resume tape playback.
+-- @tparam boolean paused
+Audio.tape_play_pause = function(paused)
+  _norns.tape_play_pause(paused and 1 or 0)
+end
+
 --- stop tape playing.
 Audio.tape_play_stop = function()
   _norns.tape_play_stop()
+end
+
+--- set tape looping on/off.
+-- @tparam boolean enabled
+Audio.tape_play_loop = function(enabled)
+  _norns.tape_play_loop(enabled and 1 or 0)
 end
 
 --- open a tape recording file.
@@ -172,6 +313,12 @@ end
 --- start tape recording.
 Audio.tape_record_start = function()
   _norns.tape_record_start()
+end
+
+--- pause or resume tape recording.
+-- @tparam boolean paused
+Audio.tape_record_pause = function(paused)
+  _norns.tape_record_pause(paused and 1 or 0)
 end
 
 --- stop tape recording.
@@ -247,8 +394,11 @@ end
 
 --- print audio file info 
 -- @tparam string path (from dust directory)
+-- @treturn integer number of audio channels
+-- @treturn integer number of samples
+-- @treturn integer sample rate
 function Audio.file_info(path)
-  -- dur, ch, rate
+  -- ch, samples, rate
   --print("file_info: " .. path)
   return _norns.sound_file_inspect(path)
 end

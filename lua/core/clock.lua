@@ -1,4 +1,8 @@
 --- clock coroutines
+--
+-- The [norns script reference](https://monome.org/docs/norns/reference/)
+-- has [examples for this module](https://monome.org/docs/norns/reference/clock).
+--
 -- @module clock
 
 local clock = {}
@@ -186,6 +190,11 @@ clock.link.set_start_stop_sync = function(enabled)
   return _norns.clock_link_set_start_stop_sync(enabled)
 end
 
+--- returns the number of other devices present in the Link session with this norns.
+clock.link.get_number_of_peers = function()
+  return _norns.clock_link_get_number_of_peers()
+end
+
 _norns.clock.start = function()
   if clock.transport.start ~= nil then
     clock.transport.start()
@@ -360,7 +369,7 @@ end
 
 
 clock.help = [[
---------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 clock.run( func )             start a new coroutine with function [func]
                               (returns) created id
 clock.cancel( id )            cancel coroutine [id]
@@ -371,7 +380,7 @@ clock.get_beats()             (returns) current time in beats
 clock.get_tempo()             (returns) current tempo
 clock.get_beat_sec()          (returns) length of a single beat at current
                                 tempo in seconds
---------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- example
 
 -- start a clock with calling function [loop]

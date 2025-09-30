@@ -90,6 +90,11 @@ _norns.softcut_phase = function(id, value) end
 _norns.softcut_render = function(ch, start, sec_per_sample, samples) end
 _norns.softcut_position = function(i,pos) end
 
+-- tape callbacks
+_norns.tape_status = function(_play_state, _play_pos_s, _play_len_s, _rec_state, _rec_pos_s, _loop_enabled) end
+_norns.tape_play_file = function(_path) end
+_norns.tape_rec_file = function(_path) end
+
 -- default readings for battery
 norns.battery_percent = 0
 norns.battery_current = 0
@@ -195,11 +200,11 @@ end
 -- 3 = PI3 (norns shield)
 norns.platform = _norns.platform()
 
---- true if we are running on norns (CM3)
-norns.is_norns = norns.platform == 2
+--- true if we are running on norns (CM3, CM4, CM4S)
+norns.is_norns = _norns.platform_factory()
 
---- true if we are running on norns shield (PI3)
-norns.is_shield = norns.platform == 3
+--- true if we are running on norns shield (PI3, PI4)
+norns.is_shield = _norns.platform_shield()
 
 -- Util (system_cmd)
 local system_cmd_q = {}
@@ -248,7 +253,6 @@ _norns.restart = function()
   hook.system_pre_shutdown()
   print("RESTARTING")
   norns.script.clear()
-  _norns.free_engine()
   norns.state.clean_shutdown = true
   norns.state.save()
   pcall(cleanup)

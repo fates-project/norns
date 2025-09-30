@@ -1,5 +1,11 @@
---- Control class
+--- Parameter with granular control
+--
+-- See also the [norns script reference](https://monome.org/docs/norns/reference/)
+-- which has
+-- [examples for this module](https://monome.org/docs/norns/reference/parameters/control).
+--
 -- @module params.control
+-- @alias Control
 
 local ControlSpec = require 'core/controlspec'
 

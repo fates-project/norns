@@ -77,47 +77,56 @@ static void o_set_num_desc(int *dst, int num);
 
 //--- OSC handlers
 static int handle_crone_ready(const char *path, const char *types, lo_arg **argv, int argc,
-			      lo_message data, void *user_data);
+                              lo_message data, void *user_data);
 static int handle_engine_report_start(const char *path, const char *types, lo_arg **argv, int argc,
-				      lo_message data, void *user_data);
+                                      lo_message data, void *user_data);
 static int handle_engine_report_entry(const char *path, const char *types, lo_arg **argv, int argc,
-				      lo_message data, void *user_data);
+                                      lo_message data, void *user_data);
 static int handle_engine_report_end(const char *path, const char *types, lo_arg **argv, int argc,
-				    lo_message data, void *user_data);
+                                    lo_message data, void *user_data);
 static int handle_command_report_start(const char *path, const char *types, lo_arg **argv, int argc,
-				       lo_message data, void *user_data);
+                                       lo_message data, void *user_data);
 static int handle_command_report_entry(const char *path, const char *types, lo_arg **argv, int argc,
-				       lo_message data, void *user_data);
+                                       lo_message data, void *user_data);
 static int handle_command_report_end(const char *path, const char *types, lo_arg **argv, int argc,
-				     lo_message data, void *user_data);
+                                     lo_message data, void *user_data);
 static int handle_poll_report_start(const char *path, const char *types, lo_arg **argv, int argc,
-				    lo_message data, void *user_data);
+                                    lo_message data, void *user_data);
 static int handle_poll_report_entry(const char *path, const char *types, lo_arg **argv, int argc,
-				    lo_message data, void *user_data);
+                                    lo_message data, void *user_data);
 static int handle_poll_report_end(const char *path, const char *types, lo_arg **argv, int argc,
-				  lo_message data, void *user_data);
+                                  lo_message data, void *user_data);
 static int handle_poll_value(const char *path, const char *types, lo_arg **argv, int argc,
-			     lo_message data, void *user_data);
+                             lo_message data, void *user_data);
 static int handle_poll_data(const char *path, const char *types, lo_arg **argv, int argc,
-			    lo_message data, void *user_data);
+                            lo_message data, void *user_data);
 /* static int handle_poll_wave(const char *path, const char *types, */
 /*                              lo_arg **argv, int argc, */
-/*                              
+/*
 lo_message data, void *user_data); */
 static int handle_poll_io_levels(const char *path, const char *types, lo_arg **argv, int argc,
-				 lo_message data, void *user_data);
+                                 lo_message data, void *user_data);
 
 static int handle_poll_softcut_phase(const char *path, const char *types, lo_arg **argv, int argc,
-				     lo_message data, void *user_data);
+                                     lo_message data, void *user_data);
+
+static int handle_poll_tape_status(const char *path, const char *types, lo_arg **argv, int argc,
+                                   lo_message data, void *user_data);
 
 static int handle_softcut_render(const char *path, const char *types, lo_arg **argv, int argc,
-				 lo_message data, void *user_data);
+                                 lo_message data, void *user_data);
 
 static int handle_softcut_position(const char *path, const char *types, lo_arg **argv, int argc,
-				 lo_message data, void *user_data);
+                                   lo_message data, void *user_data);
 
-static int handle_tape_play_state(const char *path, const char *types, lo_arg **argv, int argc,
-				  lo_message data, void *user_data);
+static int handle_tape_play_open(const char *path, const char *types, lo_arg **argv, int argc,
+                                 lo_message data, void *user_data);
+static int handle_tape_record_open(const char *path, const char *types, lo_arg **argv, int argc,
+                                   lo_message data, void *user_data);
+static int handle_tape_play_close(const char *path, const char *types, lo_arg **argv, int argc,
+                                  lo_message data, void *user_data);
+static int handle_tape_record_close(const char *path, const char *types, lo_arg **argv, int argc,
+                                    lo_message data, void *user_data);
 
 static void lo_error_handler(int num, const char *m, const char *path);
 
@@ -180,8 +189,13 @@ void o_init(void) {
     lo_server_thread_add_method(st, "/poll/vu", "b", handle_poll_io_levels, NULL);
     // softcut polls
     lo_server_thread_add_method(st, "/poll/softcut/phase", "if", handle_poll_softcut_phase, NULL);
+    // tape status poll
+    lo_server_thread_add_method(st, "/poll/tape", "iffifi", handle_poll_tape_status, NULL);
     // tape reports
-    lo_server_thread_add_method(st, "/tape/play/state", "s", handle_tape_play_state, NULL);
+    lo_server_thread_add_method(st, "/tape/play/open", "s", handle_tape_play_open, NULL);
+    lo_server_thread_add_method(st, "/tape/play/close", "", handle_tape_play_close, NULL);
+    lo_server_thread_add_method(st, "/tape/record/open", "s", handle_tape_record_open, NULL);
+    lo_server_thread_add_method(st, "/tape/record/close", "", handle_tape_record_close, NULL);
 
     // softcut buffer content
     lo_server_thread_add_method(st, "/softcut/buffer/render_callback", "iffb", handle_softcut_render, NULL);
@@ -423,6 +437,14 @@ void o_poll_stop_cut_phase() {
     lo_send(crone_addr, "/poll/stop/cut/phase", NULL);
 }
 
+void o_poll_start_tape() {
+    lo_send(crone_addr, "/poll/start/tape", NULL);
+}
+
+void o_poll_stop_tape() {
+    lo_send(crone_addr, "/poll/stop/tape", NULL);
+}
+
 void o_set_level_adc(float level) {
     lo_send(crone_addr, "/set/level/adc", "f", level);
 }
@@ -482,6 +504,10 @@ void o_tape_rec_start() {
     lo_send(crone_addr, "/tape/record/start", NULL);
 }
 
+void o_tape_rec_pause(int paused) {
+    lo_send(crone_addr, "/tape/record/pause", "i", paused);
+}
+
 void o_tape_rec_stop() {
     lo_send(crone_addr, "/tape/record/stop", NULL);
 }
@@ -494,8 +520,16 @@ void o_tape_play_start() {
     lo_send(crone_addr, "/tape/play/start", NULL);
 }
 
+void o_tape_play_pause(int paused) {
+    lo_send(crone_addr, "/tape/play/pause", "i", paused);
+}
+
 void o_tape_play_stop() {
     lo_send(crone_addr, "/tape/play/stop", NULL);
+}
+
+void o_tape_play_loop(int enabled) {
+    lo_send(crone_addr, "/tape/play/loop", "i", enabled);
 }
 
 //--- cut
@@ -675,13 +709,13 @@ void o_set_comp_param(const char *name, float value) {
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
 int handle_crone_ready(const char *path, const char *types, lo_arg **argv, int argc,
-		       lo_message data, void *user_data) {
+                       lo_message data, void *user_data) {
     norns_hello_ok();
     return 0;
 }
 
 int handle_engine_report_start(const char *path, const char *types, lo_arg **argv, int argc,
-			       lo_message data, void *user_data) {
+                               lo_message data, void *user_data) {
     assert(argc > 0);
     // arg 1: count of engines
     o_clear_engine_names();
@@ -690,7 +724,7 @@ int handle_engine_report_start(const char *path, const char *types, lo_arg **arg
 }
 
 int handle_engine_report_entry(const char *path, const char *types, lo_arg **argv, int argc,
-			       lo_message data, void *user_data) {
+                               lo_message data, void *user_data) {
     assert(argc > 1);
     // arg 1: engine index
     // arg 2: engine
@@ -700,7 +734,7 @@ int handle_engine_report_entry(const char *path, const char *types, lo_arg **arg
 }
 
 int handle_engine_report_end(const char *path, const char *types, lo_arg **argv, int argc,
-			     lo_message data, void *user_data) {
+                             lo_message data, void *user_data) {
     // no arguments; post event
     event_post(event_data_new(EVENT_ENGINE_REPORT));
     return 0;
@@ -710,7 +744,7 @@ int handle_engine_report_end(const char *path, const char *types, lo_arg **argv,
 //--- command report
 
 int handle_command_report_start(const char *path, const char *types, lo_arg **argv, int argc,
-				lo_message data, void *user_data) {
+                                lo_message data, void *user_data) {
     assert(argc > 0);
     o_clear_commands();
     o_set_num_desc(&num_commands, argv[0]->i);
@@ -718,14 +752,14 @@ int handle_command_report_start(const char *path, const char *types, lo_arg **ar
 }
 
 int handle_command_report_entry(const char *path, const char *types, lo_arg **argv, int argc,
-				lo_message data, void *user_data) {
+                                lo_message data, void *user_data) {
     assert(argc > 2);
     o_set_command(argv[0]->i, &argv[1]->s, &argv[2]->s);
     return 0;
 }
 
 int handle_command_report_end(const char *path, const char *types, lo_arg **argv, int argc,
-			      lo_message data, void *user_data) {
+                              lo_message data, void *user_data) {
     needCommandReport = false;
     test_engine_load_done();
     return 0;
@@ -735,7 +769,7 @@ int handle_command_report_end(const char *path, const char *types, lo_arg **argv
 //--- poll report
 
 int handle_poll_report_start(const char *path, const char *types, lo_arg **argv, int argc,
-			     lo_message data, void *user_data) {
+                             lo_message data, void *user_data) {
 
     assert(argc > 0);
     o_clear_polls();
@@ -744,7 +778,7 @@ int handle_poll_report_start(const char *path, const char *types, lo_arg **argv,
 }
 
 int handle_poll_report_entry(const char *path, const char *types, lo_arg **argv, int argc,
-			     lo_message data, void *user_data) {
+                             lo_message data, void *user_data) {
 
     assert(argc > 2);
     o_set_poll(argv[0]->i, &argv[1]->s, argv[2]->i);
@@ -752,7 +786,7 @@ int handle_poll_report_entry(const char *path, const char *types, lo_arg **argv,
 }
 
 int handle_poll_report_end(const char *path, const char *types, lo_arg **argv, int argc,
-			   lo_message data, void *user_data) {
+                           lo_message data, void *user_data) {
 
     // event_post( event_data_new(EVENT_POLL_REPORT) );
     needPollReport = false;
@@ -761,7 +795,7 @@ int handle_poll_report_end(const char *path, const char *types, lo_arg **argv, i
 }
 
 int handle_poll_value(const char *path, const char *types, lo_arg **argv, int argc,
-		      lo_message data, void *user_data) {
+                      lo_message data, void *user_data) {
 
     assert(argc > 1);
     union event_data *ev = event_data_new(EVENT_POLL_VALUE);
@@ -772,7 +806,7 @@ int handle_poll_value(const char *path, const char *types, lo_arg **argv, int ar
 }
 
 int handle_poll_data(const char *path, const char *types, lo_arg **argv, int argc,
-		     lo_message data, void *user_data) {
+                     lo_message data, void *user_data) {
 
     assert(argc > 1);
     union event_data *ev = event_data_new(EVENT_POLL_DATA);
@@ -787,7 +821,7 @@ int handle_poll_data(const char *path, const char *types, lo_arg **argv, int arg
 }
 
 int handle_poll_io_levels(const char *path, const char *types, lo_arg **argv, int argc,
-			  lo_message data, void *user_data) {
+                          lo_message data, void *user_data) {
 
     assert(argc > 0);
     union event_data *ev = event_data_new(EVENT_POLL_IO_LEVELS);
@@ -800,7 +834,7 @@ int handle_poll_io_levels(const char *path, const char *types, lo_arg **argv, in
 }
 
 int handle_poll_softcut_phase(const char *path, const char *types, lo_arg **argv, int argc,
-			      lo_message data, void *user_data) {
+                              lo_message data, void *user_data) {
 
     assert(argc > 1);
     union event_data *ev = event_data_new(EVENT_POLL_SOFTCUT_PHASE);
@@ -810,16 +844,81 @@ int handle_poll_softcut_phase(const char *path, const char *types, lo_arg **argv
     return 0;
 }
 
-int handle_tape_play_state(const char *path, const char *types, lo_arg **argv, int argc,
-			   lo_message data, void *user_data) {
+int handle_poll_tape_status(const char *path, const char *types, lo_arg **argv, int argc,
+                            lo_message data, void *user_data) {
+    (void)path;
+    (void)types;
+    (void)data;
+    (void)user_data;
+    // expect 6 args: i f f i f i
+    if (argc < 6) {
+        return 0;
+    }
+    union event_data *ev = event_data_new(EVENT_TAPE_STATUS);
+    ev->tape_status.play_state = argv[0]->i;
+    ev->tape_status.play_pos_s = argv[1]->f;
+    ev->tape_status.play_len_s = argv[2]->f;
+    ev->tape_status.rec_state = argv[3]->i;
+    ev->tape_status.rec_pos_s = argv[4]->f;
+    ev->tape_status.loop_enabled = argv[5]->i;
+    event_post(ev);
+    return 0;
+}
 
-    // assert(argc > 0);
-    // fprintf(stderr, "tape_play_status %s\n", &argv[0]->s);
+int handle_tape_play_open(const char *path, const char *types, lo_arg **argv, int argc,
+                          lo_message data, void *user_data) {
+    (void)path;
+    (void)types;
+    (void)argc;
+    (void)data;
+    (void)user_data;
+    union event_data *ev = event_data_new(EVENT_TAPE_PLAY_FILE);
+    ev->tape_file.path = strdup(&argv[0]->s);
+    event_post(ev);
+    return 0;
+}
+
+int handle_tape_play_close(const char *path, const char *types, lo_arg **argv, int argc,
+                           lo_message data, void *user_data) {
+    (void)path;
+    (void)types;
+    (void)argv;
+    (void)argc;
+    (void)data;
+    (void)user_data;
+    union event_data *ev = event_data_new(EVENT_TAPE_PLAY_CLOSE);
+    event_post(ev);
+    return 0;
+}
+
+int handle_tape_record_open(const char *path, const char *types, lo_arg **argv, int argc,
+                            lo_message data, void *user_data) {
+    (void)path;
+    (void)types;
+    (void)argc;
+    (void)data;
+    (void)user_data;
+    union event_data *ev = event_data_new(EVENT_TAPE_RECORD_FILE);
+    ev->tape_file.path = strdup(&argv[0]->s);
+    event_post(ev);
+    return 0;
+}
+
+int handle_tape_record_close(const char *path, const char *types, lo_arg **argv, int argc,
+                             lo_message data, void *user_data) {
+    (void)path;
+    (void)types;
+    (void)argv;
+    (void)argc;
+    (void)data;
+    (void)user_data;
+    union event_data *ev = event_data_new(EVENT_TAPE_RECORD_CLOSE);
+    event_post(ev);
     return 0;
 }
 
 int handle_softcut_render(const char *path, const char *types, lo_arg **argv, int argc,
-			  lo_message data, void *user_data) {
+                          lo_message data, void *user_data) {
     assert(argc > 2);
     union event_data *ev = event_data_new(EVENT_SOFTCUT_RENDER);
     ev->softcut_render.idx = argv[0]->i;
@@ -827,7 +926,7 @@ int handle_softcut_render(const char *path, const char *types, lo_arg **argv, in
     ev->softcut_render.start = argv[2]->f;
 
     int sz = lo_blob_datasize((lo_blob)argv[3]);
-    float *samples = (float*)lo_blob_dataptr((lo_blob)argv[3]);
+    float *samples = (float *)lo_blob_dataptr((lo_blob)argv[3]);
     ev->softcut_render.size = sz / sizeof(float);
     ev->softcut_render.data = calloc(1, sz);
     memcpy(ev->softcut_render.data, samples, sz);
@@ -836,7 +935,7 @@ int handle_softcut_render(const char *path, const char *types, lo_arg **argv, in
 }
 
 int handle_softcut_position(const char *path, const char *types, lo_arg **argv, int argc,
-			  lo_message data, void *user_data) {
+                            lo_message data, void *user_data) {
     assert(argc > 1);
     union event_data *ev = event_data_new(EVENT_SOFTCUT_POSITION);
     ev->softcut_position.idx = argv[0]->i;

@@ -28,12 +28,15 @@
 #include "clocks/clock_internal.h"
 #include "clocks/clock_link.h"
 #include "clocks/clock_scheduler.h"
+#include "device.h"
 #include "device_crow.h"
 #include "device_hid.h"
+#include "device_list.h"
 #include "device_midi.h"
 #include "device_monome.h"
-#include "events.h"
+#include "device_serial.h"
 #include "event_custom.h"
+#include "events.h"
 #include "hello.h"
 #include "i2c.h"
 #include "jack_client.h"
@@ -99,8 +102,8 @@ static int _screen_font_face(lua_State *l);
 static int _screen_font_size(lua_State *l);
 static int _screen_aa(lua_State *l);
 static int _screen_gamma(lua_State *l);
-static int _screen_brightness(lua_State*l);
-static int _screen_contrast(lua_State*l);
+static int _screen_brightness(lua_State *l);
+static int _screen_contrast(lua_State *l);
 static int _screen_invert(lua_State *l);
 static int _screen_level(lua_State *l);
 static int _screen_line_width(lua_State *l);
@@ -175,6 +178,9 @@ static int _midi_clock_receive(lua_State *l);
 // crow
 static int _crow_send(lua_State *l);
 
+// serial
+static int _serial_send(lua_State *l);
+
 // crone
 /// engines
 static int _request_engine_report(lua_State *l);
@@ -211,14 +217,19 @@ static int _poll_start_vu(lua_State *l);
 static int _poll_stop_vu(lua_State *l);
 static int _poll_start_cut_phase(lua_State *l);
 static int _poll_stop_cut_phase(lua_State *l);
+static int _poll_start_tape(lua_State *l);
+static int _poll_stop_tape(lua_State *l);
 
 // tape control
 static int _tape_rec_open(lua_State *l);
 static int _tape_rec_start(lua_State *l);
+static int _tape_rec_pause(lua_State *l);
 static int _tape_rec_stop(lua_State *l);
 static int _tape_play_open(lua_State *l);
 static int _tape_play_start(lua_State *l);
+static int _tape_play_pause(lua_State *l);
 static int _tape_play_stop(lua_State *l);
+static int _tape_play_loop(lua_State *l);
 
 // cut
 static int _set_level_adc_cut(lua_State *l);
@@ -289,6 +300,7 @@ static int _clock_link_set_quantum(lua_State *l);
 static int _clock_link_set_transport_stop(lua_State *l);
 static int _clock_link_set_transport_start(lua_State *l);
 static int _clock_link_set_start_stop_sync(lua_State *l);
+static int _clock_link_get_number_of_peers(lua_State *l);
 #endif
 static int _clock_set_source(lua_State *l);
 static int _clock_get_time_beats(lua_State *l);
@@ -298,6 +310,12 @@ static int _clock_get_tempo(lua_State *l);
 static int _audio_get_cpu_load(lua_State *l);
 static int _audio_get_xrun_count(lua_State *l);
 
+static int _audio_get_input_ports(lua_State *l);
+static int _audio_get_output_ports(lua_State *l);
+static int _audio_get_port_connections(lua_State *l);
+static int _audio_connect(lua_State *l);
+static int _audio_disconnect(lua_State *l);
+
 // time-since measurement
 static int _cpu_time_start_timer(lua_State *l);
 static int _cpu_time_get_delta(lua_State *l);
@@ -306,6 +324,8 @@ static int _wall_time_get_delta(lua_State *l);
 
 // platform detection (CM3 vs PI3 vs OTHER)
 static int _platform(lua_State *l);
+static int _platform_factory(lua_State *l);
+static int _platform_shield(lua_State *l);
 
 // boilerplate: push a lua function to the lua stack, from named field in global 'norns'
 static inline void _push_norns_func(const char *field, const char *func) {
@@ -393,16 +413,21 @@ void w_init(void) {
     // tape controls
     lua_register_norns("tape_record_open", &_tape_rec_open);
     lua_register_norns("tape_record_start", &_tape_rec_start);
+    lua_register_norns("tape_record_pause", &_tape_rec_pause);
     lua_register_norns("tape_record_stop", &_tape_rec_stop);
     lua_register_norns("tape_play_open", &_tape_play_open);
     lua_register_norns("tape_play_start", &_tape_play_start);
+    lua_register_norns("tape_play_pause", &_tape_play_pause);
     lua_register_norns("tape_play_stop", &_tape_play_stop);
+    lua_register_norns("tape_play_loop", &_tape_play_loop);
 
     // polls
     lua_register_norns("poll_start_vu", &_poll_start_vu);
     lua_register_norns("poll_stop_vu", &_poll_stop_vu);
     lua_register_norns("poll_start_cut_phase", &_poll_start_cut_phase);
     lua_register_norns("poll_stop_cut_phase", &_poll_stop_cut_phase);
+    lua_register_norns("poll_start_tape", &_poll_start_tape);
+    lua_register_norns("poll_stop_tape", &_poll_stop_tape);
 
     // cut
     lua_register_norns("level_adc_cut", &_set_level_adc_cut);
@@ -434,6 +459,9 @@ void w_init(void) {
 
     // crow
     lua_register_norns("crow_send", &_crow_send);
+
+    // serial
+    lua_register_norns("serial_send", &_serial_send);
 
     // util
     lua_register_norns("system_cmd", &_system_cmd);
@@ -482,11 +510,11 @@ void w_init(void) {
     lua_register_norns("screen_text_right", &_screen_text_right);
     lua_register_norns("screen_text_center", &_screen_text_center);
     lua_register_norns("screen_text_extents", &_screen_text_extents);
-    lua_register_norns("screen_text_trim", &_screen_text_trim);    
-    
+    lua_register_norns("screen_text_trim", &_screen_text_trim);
+
     lua_register_norns("screen_clear", &_screen_clear);
     lua_register_norns("screen_close", &_screen_close);
-    
+
     lua_register_norns("screen_export_png", &_screen_export_png);
     lua_register_norns("screen_export_screenshot", &_screen_export_screenshot);
     lua_register_norns("screen_display_png", &_screen_display_png);
@@ -496,7 +524,7 @@ void w_init(void) {
     lua_register_norns("screen_translate", &_screen_translate);
     lua_register_norns("screen_set_operator", &_screen_set_operator);
     lua_register_norns("screen_current_point", &_screen_current_point);
-    
+
     // image
     lua_register_norns_class(_image_class_name, _image_methods, _image_functions);
 
@@ -561,6 +589,7 @@ void w_init(void) {
 #if HAVE_ABLETON_LINK
     lua_register_norns("clock_link_set_tempo", &_clock_link_set_tempo);
     lua_register_norns("clock_link_set_quantum", &_clock_link_set_quantum);
+    lua_register_norns("clock_link_get_number_of_peers", &_clock_link_get_number_of_peers);
     lua_register_norns("clock_link_set_transport_start", &_clock_link_set_transport_start);
     lua_register_norns("clock_link_set_transport_stop", &_clock_link_set_transport_stop);
     lua_register_norns("clock_link_set_start_stop_sync", &_clock_link_set_start_stop_sync);
@@ -572,6 +601,12 @@ void w_init(void) {
     lua_register_norns("audio_get_cpu_load", &_audio_get_cpu_load);
     lua_register_norns("audio_get_xrun_count", &_audio_get_xrun_count);
 
+    lua_register_norns("audio_get_input_ports", &_audio_get_input_ports);
+    lua_register_norns("audio_get_output_ports", &_audio_get_output_ports);
+    lua_register_norns("audio_get_port_connections", &_audio_get_port_connections);
+    lua_register_norns("audio_connect", &_audio_connect);
+    lua_register_norns("audio_disconnect", &_audio_disconnect);
+
     lua_register_norns("cpu_time_start_timer", &_cpu_time_start_timer);
     lua_register_norns("cpu_time_get_delta", &_cpu_time_get_delta);
     lua_register_norns("wall_time_start_timer", &_wall_time_start_timer);
@@ -579,6 +614,8 @@ void w_init(void) {
 
     // platform
     lua_register_norns("platform", &_platform);
+    lua_register_norns("platform_factory", &_platform_factory);
+    lua_register_norns("platform_shield", &_platform_shield);
 
     // name global extern table
     lua_setglobal(lvm, "_norns");
@@ -634,10 +671,10 @@ void w_deinit(void) {
  * @function s_update
  */
 int _screen_update(lua_State *l) {
-  lua_check_num_args(0);
-  screen_event_update();
-  lua_settop(l, 0);
-  return 0;
+    lua_check_num_args(0);
+    screen_event_update();
+    lua_settop(l, 0);
+    return 0;
 }
 
 /***
@@ -1050,7 +1087,7 @@ int _screen_close(lua_State *l) {
 int _screen_text_extents(lua_State *l) {
     lua_check_num_args(1);
     const char *s = luaL_checkstring(l, 1);
-    
+
     screen_event_text_extents(s);
     screen_results_wait();
     union screen_results_data *data = screen_results_get();
@@ -1069,12 +1106,11 @@ int _screen_text_extents(lua_State *l) {
     event_data_free(ev);
     return 6;
 #endif
-
 }
 
 /***
  * screen: export_png
- * @function s_export_png 
+ * @function s_export_png
  * @tparam string filename
  */
 int _screen_export_png(lua_State *l) {
@@ -1113,7 +1149,6 @@ int _screen_display_png(lua_State *l) {
     return 0;
 }
 
-
 /***
  * screen: peek
  * @function s_peek
@@ -1129,16 +1164,13 @@ int _screen_peek(lua_State *l) {
     int w = luaL_checkinteger(l, 3);
     int h = luaL_checkinteger(l, 4);
     lua_settop(l, 0);
-    if ((x >= 0) && (x <= 127)
-     && (y >= 0) && (y <= 63)
-     && (w > 0)
-     && (h > 0)) {
+    if ((x >= 0) && (x <= 127) && (y >= 0) && (y <= 63) && (w > 0) && (h > 0)) {
         screen_event_peek(x, y, w, h);
         screen_results_wait();
         union screen_results_data *results = screen_results_get();
         lua_pushlstring(l, results->peek.buf, results->peek.w * results->peek.h);
         screen_results_free();
-    } else { 
+    } else {
         fprintf(stderr, "WARNING: invalid position arguments to screen_peek()\n");
         lua_pushlstring(l, "", 0);
     }
@@ -1164,17 +1196,13 @@ int _screen_poke(lua_State *l) {
     uint8_t *buf = (uint8_t *)luaL_checklstring(l, 5, &len);
     lua_settop(l, 1);
     if (buf && len >= w * h) {
-        if ((x >= 0) && (x <= 127)
-         && (y >= 0) && (y <= 63)
-         && (w > 0)
-         && (h > 0)) {
+        if ((x >= 0) && (x <= 127) && (y >= 0) && (y <= 63) && (w > 0) && (h > 0)) {
             screen_event_poke(x, y, w, h, buf);
         }
     }
     lua_pop(l, 1);
     return 0;
 }
-
 
 /***
  * screen: rotate
@@ -1204,7 +1232,6 @@ int _screen_translate(lua_State *l) {
     return 0;
 }
 
-
 /***
  * screen: set_operator
  * @function s_set_operator
@@ -1213,8 +1240,12 @@ int _screen_translate(lua_State *l) {
 int _screen_set_operator(lua_State *l) {
     lua_check_num_args(1);
     int i = luaL_checknumber(l, 1);
-    if (i < 0) { i = 0; }
-    if (i > 28){ i = 28;}
+    if (i < 0) {
+        i = 0;
+    }
+    if (i > 28) {
+        i = 28;
+    }
     screen_event_set_operator(i);
     lua_settop(l, 0);
     return 0;
@@ -1258,25 +1289,35 @@ int _image_new(lua_State *l, screen_surface_t *surface, const char *name) {
 
 int _image_context_focus(lua_State *l) {
     _image_t *i = _image_check(l, 1);
+    union screen_results_data *data;
+
     if (i->context == NULL) {
         // lazily allocate drawing context
-        i->context = screen_context_new(i->surface);
+        screen_event_context_new(i->surface);
+        screen_results_wait();
+        data = screen_results_get();
+        i->context = data->context_new.context;
+        screen_results_free();
         if (i->context == NULL) {
             luaL_error(l, "unable to create drawing context");
         }
     }
-    i->previous_context = screen_context_get_current();
-    screen_context_set(i->context);
+    screen_event_context_get_current();
+    screen_results_wait();
+    data = screen_results_get();
+    i->previous_context = data->context_get_current.context;
+    screen_results_free();
+    screen_event_context_set((void *)(i->context));
     lua_settop(l, 0);
     return 0;
 }
 
 static void __image_context_defocus(_image_t *i) {
     if (i->previous_context != NULL) {
-        screen_context_set(i->previous_context);
+        screen_event_context_set((void *)(i->previous_context));
         i->previous_context = NULL;
     } else {
-        screen_context_set_primary();
+        screen_event_context_set_primary();
     }
 }
 
@@ -1297,12 +1338,16 @@ int _image_free(lua_State *l) {
     // fprintf(stderr, "_image_free(%p): begin\n", i);
     screen_surface_free(i->surface);
     if (i->context != NULL) {
-        if (i->context == screen_context_get_current()) {
+        screen_event_context_get_current();
+        screen_results_wait();
+        union screen_results_data *data = screen_results_get();
+        if (i->context == data->context_get_current.context) {
             // automatically defocus ourselves if we are the current drawing target
             // fprintf(stderr, "_image_free(%p): auto defocus\n", i);
             __image_context_defocus(i);
         }
-        screen_context_free(i->context);
+        screen_results_free();
+        screen_event_context_free(i->context);
     }
     if (i->name != NULL) {
         free(i->name);
@@ -1333,7 +1378,15 @@ int _image_equals(lua_State *l) {
 int _image_extents(lua_State *l) {
     screen_surface_extents_t extents;
     _image_t *i = _image_check(l, 1);
-    if (screen_surface_get_extents(i->surface, &extents)) {
+
+    screen_event_surface_get_extents(i->surface);
+    screen_results_wait();
+    union screen_results_data *data = screen_results_get();
+    extents.width = data->surface_get_extents.extents.width;
+    extents.height = data->surface_get_extents.extents.height;
+    screen_results_free();
+
+    if (extents.width && extents.height) {
         lua_pushinteger(l, extents.width);
         lua_pushinteger(l, extents.height);
         return 2;
@@ -1352,7 +1405,7 @@ int _image_name(lua_State *l) {
 
 /***
  * screen: create_image
- * @function screen_create_imate
+ * @function screen_create_image
  * @tparam number width image width
  * @tparam number height image height
  */
@@ -1399,7 +1452,7 @@ int _screen_display_image(lua_State *l) {
     _image_t *i = _image_check(l, 1);
     double x = luaL_checknumber(l, 2);
     double y = luaL_checknumber(l, 3);
-    screen_surface_display(i->surface, x, y);
+    screen_event_display_surface(i->surface, x, y);
     lua_settop(l, 0);
     return 0;
 }
@@ -1424,10 +1477,9 @@ int _screen_display_image_region(lua_State *l) {
     double height = luaL_checknumber(l, 5);
     double x = luaL_checknumber(l, 6);
     double y = luaL_checknumber(l, 7);
-    screen_surface_display_region(i->surface, left, top, width, height, x, y);
+    screen_event_display_surface_region(i->surface, left, top, width, height, x, y);
     return 0;
 }
-
 
 /***
  * screen: request current draw point
@@ -1445,9 +1497,6 @@ int _screen_current_point(lua_State *l) {
 
 ///-- end screen commands
 //---------------------
-
-
-
 
 /***
  * headphone: set level
@@ -1639,6 +1688,25 @@ int _crow_send(lua_State *l) {
     return 0;
 }
 
+int _serial_send(lua_State *l) {
+    struct dev_serial *d;
+    const char *s;
+
+    if (lua_gettop(l) != 2) {
+        return luaL_error(l, "wrong number of arguments");
+    }
+
+    luaL_checktype(l, 1, LUA_TLIGHTUSERDATA);
+    d = lua_touserdata(l, 1);
+    size_t len = 0;
+    s = luaL_checklstring(l, 2, &len);
+    lua_settop(l, 0);
+
+    dev_serial_send(d, s, len);
+
+    return 0;
+}
+
 /***
  * midi: send
  * @function midi_send
@@ -1683,7 +1751,7 @@ int _midi_clock_receive(lua_State *l) {
     md = lua_touserdata(l, 1);
     int enabled = lua_tointeger(l, 2);
     md->clock_enabled = enabled > 0;
-    //fprintf(stderr, "set clock_enabled to %d on device %p\n", enabled, md);
+    // fprintf(stderr, "set clock_enabled to %d on device %p\n", enabled, md);
     return 0;
 }
 
@@ -2047,7 +2115,7 @@ int _clock_schedule_sync(lua_State *l) {
         clock_scheduler_schedule_sync(coro_id, sync_beat, offset);
     }
 
-  return 0;
+    return 0;
 }
 
 int _clock_cancel(lua_State *l) {
@@ -2082,6 +2150,12 @@ int _clock_crow_in_div(lua_State *l) {
 }
 
 #if HAVE_ABLETON_LINK
+int _clock_link_get_number_of_peers(lua_State *l) {
+    uint64_t peers = clock_link_number_of_peers();
+    lua_pushinteger(l, (lua_Integer)peers);
+    return 1;
+}
+
 int _clock_link_set_tempo(lua_State *l) {
     lua_check_num_args(1);
     double bpm = luaL_checknumber(l, 1);
@@ -2095,7 +2169,6 @@ int _clock_link_set_quantum(lua_State *l) {
     clock_link_set_quantum(quantum);
     return 0;
 }
-
 
 int _clock_link_set_transport_start(lua_State *l) {
     clock_link_set_transport_start();
@@ -2139,6 +2212,55 @@ int _audio_get_cpu_load(lua_State *l) {
 
 int _audio_get_xrun_count(lua_State *l) {
     lua_pushnumber(l, jack_client_get_xrun_count());
+    return 1;
+}
+
+static int _push_port_list(lua_State *l, const char **names) {
+    const char **element = names;
+    int index = 1;
+
+    lua_newtable(l);
+
+    if (element != NULL) {
+        while (*element != NULL) {
+            lua_pushstring(l, *element);
+            lua_rawseti(l, -2, index);
+            ++index;
+            ++element;
+        }
+    }
+
+    jack_client_free_port_list(names);
+    return 1;
+}
+
+int _audio_get_input_ports(lua_State *l) {
+    return _push_port_list(l, jack_client_get_input_ports());
+}
+
+int _audio_get_output_ports(lua_State *l) {
+    return _push_port_list(l, jack_client_get_output_ports());
+}
+
+int _audio_get_port_connections(lua_State *l) {
+    lua_check_num_args(1);
+    const char *port = lua_tostring(l, 1);
+    return _push_port_list(l, jack_client_get_port_connections(port));
+}
+
+int _audio_connect(lua_State *l) {
+    lua_check_num_args(2);
+    const char *source = lua_tostring(l, 1);
+    const char *destination = lua_tostring(l, 2);
+    lua_pushboolean(l, jack_client_connect(source, destination));
+    return 1;
+}
+
+int _audio_disconnect(lua_State *l) {
+    lua_check_num_args(2);
+    const char *source = lua_tostring(l, 1);
+    const char *destination = lua_tostring(l, 2);
+    lua_pushboolean(l, jack_client_disconnect(source, destination));
     return 1;
 }
 
@@ -2190,10 +2312,10 @@ void w_handle_grid_key(int id, int x, int y, int state) {
 
 void w_handle_grid_tilt(int id, int sensor, int x, int y, int z) {
     _push_norns_func("grid", "tilt");
-    lua_pushinteger(lvm, id + 1); // convert to 1-base
-    lua_pushinteger(lvm, sensor + 1);  // convert to 1-base
-    lua_pushinteger(lvm, x + 1);  // convert to 1-base
-    lua_pushinteger(lvm, y + 1);  // convert to 1-base
+    lua_pushinteger(lvm, id + 1);     // convert to 1-base
+    lua_pushinteger(lvm, sensor + 1); // convert to 1-base
+    lua_pushinteger(lvm, x + 1);      // convert to 1-base
+    lua_pushinteger(lvm, y + 1);      // convert to 1-base
     lua_pushinteger(lvm, z + 1);
     l_report(lvm, l_docall(lvm, 5, 0));
 }
@@ -2287,6 +2409,54 @@ void w_handle_crow_event(void *dev, int id) {
     lua_pushinteger(lvm, id + 1); // convert to 1-base
     lua_pushstring(lvm, d->line);
     l_report(lvm, l_docall(lvm, 2, 0));
+}
+
+void w_handle_serial_config(char *path, char *name, char *vendor, char *model, char *serial, char *interface) {
+    _push_norns_func("serial", "match");
+    lua_pushstring(lvm, vendor);
+    lua_pushstring(lvm, model);
+    lua_pushstring(lvm, serial);
+    lua_pushstring(lvm, interface);
+    l_report(lvm, l_docall(lvm, 4, 1));
+    if (lua_isnil(lvm, -1)) {
+        fprintf(stderr, "no serial handler found for device %s at %s\n", name, path);
+        return;
+    }
+    if (!lua_isstring(lvm, -1)) {
+        fprintf(stderr, "serial handler id expected, got %s\n", lua_typename(lvm, lua_type(lvm, -1)));
+        return;
+    }
+
+    dev_list_add(DEV_TYPE_SERIAL, path, strdup(name), lvm);
+}
+
+void w_handle_serial_add(void *p) {
+    struct dev_serial *dev = (struct dev_serial *)p;
+    struct dev_common *base = (struct dev_common *)p;
+    int id = base->id;
+
+    _push_norns_func("serial", "add");
+    lua_pushstring(lvm, dev->handler_id);
+    lua_pushinteger(lvm, id + 1); // convert to 1-base
+    lua_pushstring(lvm, base->name);
+    lua_pushlightuserdata(lvm, dev);
+    l_report(lvm, l_docall(lvm, 4, 0));
+}
+
+void w_handle_serial_remove(uint32_t id, char *handler_id) {
+    _push_norns_func("serial", "remove");
+    lua_pushstring(lvm, handler_id);
+    lua_pushinteger(lvm, id + 1); // convert to 1-base
+    l_report(lvm, l_docall(lvm, 2, 0));
+}
+
+void w_handle_serial_event(void *dev, uint32_t id, char *data, ssize_t len) {
+    struct dev_serial *d = (struct dev_serial *)dev;
+    _push_norns_func("serial", "event");
+    lua_pushstring(lvm, d->handler_id);
+    lua_pushinteger(lvm, id + 1); // convert to 1-base
+    lua_pushlstring(lvm, data, len);
+    l_report(lvm, l_docall(lvm, 3, 0));
 }
 
 void w_handle_midi_add(void *p) {
@@ -2560,7 +2730,7 @@ void w_handle_power(const int present) {
 
 // stat
 void w_handle_stat(const uint32_t disk, const uint16_t temp, const uint16_t cpu,
-    const uint16_t cpu1, const uint16_t cpu2, const uint16_t cpu3, const uint16_t cpu4) {
+                   const uint16_t cpu1, const uint16_t cpu2, const uint16_t cpu3, const uint16_t cpu4) {
     lua_getglobal(lvm, "_norns");
     lua_getfield(lvm, -1, "stat");
     lua_remove(lvm, -2);
@@ -2624,7 +2794,46 @@ void w_handle_poll_softcut_phase(int idx, float val) {
     l_report(lvm, l_docall(lvm, 2, 0));
 }
 
-void w_handle_softcut_render(int idx, float sec_per_sample, float start, size_t size, float* data) {
+void w_handle_tape_status(int play_state, float play_pos_s, float play_len_s, int rec_state, float rec_pos_s, int loop_enabled) {
+    lua_getglobal(lvm, "_norns");
+    lua_getfield(lvm, -1, "tape_status");
+    lua_remove(lvm, -2);
+    lua_pushinteger(lvm, play_state);
+    lua_pushnumber(lvm, play_pos_s);
+    lua_pushnumber(lvm, play_len_s);
+    lua_pushinteger(lvm, rec_state);
+    lua_pushnumber(lvm, rec_pos_s);
+    lua_pushinteger(lvm, loop_enabled);
+    l_report(lvm, l_docall(lvm, 6, 0));
+}
+
+void w_handle_tape_play_file(const char *path) {
+    lua_getglobal(lvm, "_norns");
+    lua_getfield(lvm, -1, "tape_play_file");
+    lua_remove(lvm, -2);
+    if (path) {
+        lua_pushstring(lvm, path);
+        l_report(lvm, l_docall(lvm, 1, 0));
+    } else {
+        lua_pushnil(lvm);
+        l_report(lvm, l_docall(lvm, 1, 0));
+    }
+}
+
+void w_handle_tape_rec_file(const char *path) {
+    lua_getglobal(lvm, "_norns");
+    lua_getfield(lvm, -1, "tape_rec_file");
+    lua_remove(lvm, -2);
+    if (path) {
+        lua_pushstring(lvm, path);
+        l_report(lvm, l_docall(lvm, 1, 0));
+    } else {
+        lua_pushnil(lvm);
+        l_report(lvm, l_docall(lvm, 1, 0));
+    }
+}
+
+void w_handle_softcut_render(int idx, float sec_per_sample, float start, size_t size, float *data) {
     lua_getglobal(lvm, "_norns");
     lua_getfield(lvm, -1, "softcut_render");
     lua_remove(lvm, -2);
@@ -2687,7 +2896,7 @@ int _stop_poll(lua_State *l) {
 
 int _set_poll_time(lua_State *l) {
     lua_check_num_args(2);
-     int idx = (int)luaL_checkinteger(l, 1) - 1; // convert from 1-based
+    int idx = (int)luaL_checkinteger(l, 1) - 1; // convert from 1-based
     float val = (float)luaL_checknumber(l, 2);
     o_set_poll_time(idx, val);
     lua_settop(l, 0);
@@ -2776,6 +2985,18 @@ int _tape_rec_start(lua_State *l) {
     return 0;
 }
 
+int _tape_rec_pause(lua_State *l) {
+    lua_check_num_args(1);
+    int paused;
+    if (lua_isboolean(l, 1)) {
+        paused = lua_toboolean(l, 1);
+    } else {
+        paused = (int)luaL_checknumber(l, 1) != 0 ? 1 : 0;
+    }
+    o_tape_rec_pause(paused);
+    return 0;
+}
+
 int _tape_rec_stop(lua_State *l) {
     o_tape_rec_stop();
     return 0;
@@ -2794,8 +3015,32 @@ int _tape_play_start(lua_State *l) {
     return 0;
 }
 
+int _tape_play_pause(lua_State *l) {
+    lua_check_num_args(1);
+    int paused;
+    if (lua_isboolean(l, 1)) {
+        paused = lua_toboolean(l, 1);
+    } else {
+        paused = (int)luaL_checknumber(l, 1) != 0 ? 1 : 0;
+    }
+    o_tape_play_pause(paused);
+    return 0;
+}
+
 int _tape_play_stop(lua_State *l) {
     o_tape_play_stop();
+    return 0;
+}
+
+int _tape_play_loop(lua_State *l) {
+    lua_check_num_args(1);
+    int enabled;
+    if (lua_isboolean(l, 1)) {
+        enabled = lua_toboolean(l, 1);
+    } else {
+        enabled = (int)luaL_checknumber(l, 1) != 0 ? 1 : 0;
+    }
+    o_tape_play_loop(enabled);
     return 0;
 }
 
@@ -2816,6 +3061,18 @@ int _poll_start_cut_phase(lua_State *l) {
 
 int _poll_stop_cut_phase(lua_State *l) {
     o_poll_stop_cut_phase();
+    return 0;
+}
+
+int _poll_start_tape(lua_State *l) {
+    (void)l;
+    o_poll_start_tape();
+    return 0;
+}
+
+int _poll_stop_tape(lua_State *l) {
+    (void)l;
+    o_poll_stop_tape();
     return 0;
 }
 
@@ -3170,8 +3427,8 @@ int _system_glob(lua_State *l) {
     }
 
     lua_newtable(l);
-    for(i=1; i<=g.gl_pathc; i++) {
-        lua_pushstring(l, g.gl_pathv[i-1]);
+    for (i = 1; i <= g.gl_pathc; i++) {
+        lua_pushstring(l, g.gl_pathv[i - 1]);
         lua_rawseti(l, -2, i);
     }
     globfree(&g);
@@ -3184,5 +3441,16 @@ int _platform(lua_State *l) {
     return 1;
 }
 
+int _platform_factory(lua_State *l) {
+    lua_check_num_args(0);
+    lua_pushboolean(l, platform_factory());
+    return 1;
+}
+
+int _platform_shield(lua_State *l) {
+    lua_check_num_args(0);
+    lua_pushboolean(l, platform_shield());
+    return 1;
+}
 
 #pragma GCC diagnostic pop

@@ -12,8 +12,8 @@
 #include "clocks/clock_internal.h"
 #include "clocks/clock_link.h"
 #include "clocks/clock_midi.h"
-#include "config.h"
 #include "clocks/clock_scheduler.h"
+#include "config.h"
 #include "device.h"
 #include "device_hid.h"
 #include "device_list.h"
@@ -21,6 +21,7 @@
 #include "device_monitor.h"
 #include "device_monome.h"
 #include "events.h"
+#include "hardware/screen/ssd1322.h"
 #include "hello.h"
 #include "i2c.h"
 #include "input.h"
@@ -32,7 +33,6 @@
 #include "screen_events.h"
 #include "screen_results.h"
 #include "stat.h"
-#include "hardware/screen/ssd1322.h"
 
 #include "oracle.h"
 #include "weaver.h"
@@ -61,7 +61,7 @@ int main(int argc, char **argv) {
 
     print_version();
     init_platform();
-    printf("platform: %d\n",platform());
+    printf("platform: %s (%d)\n", platform_name(), platform());
 
     events_init(); // <-- must come first!
     if (config_init()) {
@@ -74,8 +74,16 @@ int main(int argc, char **argv) {
     battery_init();
     stat_init();
     osc_init();
-    jack_client_init();
     ssd1322_init();
+    if (jack_client_init()) {
+        screen_clear();
+        screen_level(15);
+        screen_move(10, 40);
+        screen_text("audio system fail.");
+        screen_update();
+        ssd1322_refresh();
+        return -1;
+    }
     clock_init();
     clock_internal_init();
     clock_midi_init();
@@ -93,7 +101,7 @@ int main(int argc, char **argv) {
     w_init(); // weaver (scripting)
 
     dev_list_init();
-    dev_list_add(DEV_TYPE_MIDI_VIRTUAL, NULL, "virtual");
+    dev_list_add(DEV_TYPE_MIDI_VIRTUAL, NULL, "virtual", NULL);
 
     fprintf(stderr, "init dev_monitor...\n");
     dev_monitor_init();
@@ -126,7 +134,7 @@ int main(int argc, char **argv) {
 
     fprintf(stderr, "running post-startup...\n");
     w_post_startup();
-    
+
     // blocks until quit
     event_loop();
 }

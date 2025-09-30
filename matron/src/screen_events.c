@@ -8,7 +8,7 @@
 #include "screen_events.h"
 #include "screen_events_pr.h"
 
-#define SCREEN_Q_SIZE 1024
+#define SCREEN_Q_SIZE 16384
 #define SCREEN_Q_MASK (SCREEN_Q_SIZE - 1)
 
 static struct screen_event_data screen_q[SCREEN_Q_SIZE];
@@ -190,6 +190,40 @@ void handle_screen_event(struct screen_event_data *ev) {
         break;
     case SCREEN_EVENT_DISPLAY_PNG:
         screen_display_png(ev->buf, ev->payload.bd.d1, ev->payload.bd.d2);
+        break;
+    case SCREEN_EVENT_DISPLAY_SURFACE:
+        screen_surface_display(ev->buf, ev->payload.bd.d1, ev->payload.bd.d2);
+        ev->buf = NULL;
+        break;
+    case SCREEN_EVENT_DISPLAY_SURFACE_REGION:
+        screen_surface_display_region(ev->buf, ev->payload.d.d1, ev->payload.d.d2, ev->payload.d.d3, ev->payload.d.d4, ev->payload.d.d5, ev->payload.d.d6);
+        ev->buf = NULL;
+        break;
+    case SCREEN_EVENT_SURFACE_FREE:
+        screen_surface_free(ev->buf);
+        ev->buf = NULL;
+        break;
+    case SCREEN_EVENT_SURFACE_GET_EXTENTS:
+        screen_surface_get_extents(ev->buf);
+        ev->buf = NULL;
+        break;
+    case SCREEN_EVENT_CONTEXT_FREE:
+        screen_context_free(ev->buf);
+        ev->buf = NULL;
+        break;
+    case SCREEN_EVENT_CONTEXT_NEW:
+        screen_context_new(ev->buf);
+        ev->buf = NULL;
+        break;
+    case SCREEN_EVENT_CONTEXT_GET_CURRENT:
+        screen_context_get_current();
+        break;
+    case SCREEN_EVENT_CONTEXT_SET:
+        screen_context_set(ev->buf);
+        ev->buf = NULL;
+        break;
+    case SCREEN_EVENT_CONTEXT_SET_PRIMARY:
+        screen_context_set_primary();
         break;
     case SCREEN_EVENT_ROTATE:
         screen_rotate(ev->payload.d.d1);
@@ -493,6 +527,84 @@ void screen_event_display_png(const char *s, double x, double y) {
     screen_event_copy_string(&ev, s);
     ev.payload.bd.d1 = x;
     ev.payload.bd.d2 = y;
+    screen_event_data_push(&ev);
+}
+
+void screen_event_display_surface(void *surface, double x, double y) {
+    struct screen_event_data ev;
+    screen_event_data_init(&ev);
+    ev.type = SCREEN_EVENT_DISPLAY_SURFACE;
+    ev.buf = surface;
+    ev.payload.bd.d1 = x;
+    ev.payload.bd.d2 = y;
+    screen_event_data_push(&ev);
+}
+
+void screen_event_display_surface_region(void *surface, double left, double top, double width, double height, double x, double y) {
+    struct screen_event_data ev;
+    screen_event_data_init(&ev);
+    ev.type = SCREEN_EVENT_DISPLAY_SURFACE_REGION;
+    ev.buf = surface;
+    ev.payload.d.d1 = left;
+    ev.payload.d.d2 = top;
+    ev.payload.d.d3 = width;
+    ev.payload.d.d4 = height;
+    ev.payload.d.d5 = x;
+    ev.payload.d.d6 = y;
+    screen_event_data_push(&ev);
+}
+
+void screen_event_surface_free(void *surface) {
+    struct screen_event_data ev;
+    screen_event_data_init(&ev);
+    ev.type = SCREEN_EVENT_SURFACE_FREE;
+    ev.buf = surface;
+    screen_event_data_push(&ev);
+}
+
+void screen_event_surface_get_extents(void *surface) {
+    struct screen_event_data ev;
+    screen_event_data_init(&ev);
+    ev.type = SCREEN_EVENT_SURFACE_GET_EXTENTS;
+    ev.buf = surface;
+    screen_event_data_push(&ev);
+}
+
+void screen_event_context_free(void *screen_context) {
+    struct screen_event_data ev;
+    screen_event_data_init(&ev);
+    ev.type = SCREEN_EVENT_CONTEXT_FREE;
+    ev.buf = screen_context;
+    screen_event_data_push(&ev);
+}
+
+void screen_event_context_new(void *target) {
+    struct screen_event_data ev;
+    screen_event_data_init(&ev);
+    ev.type = SCREEN_EVENT_CONTEXT_NEW;
+    ev.buf = target;
+    screen_event_data_push(&ev);
+}
+
+void screen_event_context_get_current(void) {
+    struct screen_event_data ev;
+    screen_event_data_init(&ev);
+    ev.type = SCREEN_EVENT_CONTEXT_GET_CURRENT;
+    screen_event_data_push(&ev);
+}
+
+void screen_event_context_set(void *screen_context) {
+    struct screen_event_data ev;
+    screen_event_data_init(&ev);
+    ev.type = SCREEN_EVENT_CONTEXT_SET;
+    ev.buf = screen_context;
+    screen_event_data_push(&ev);
+}
+
+void screen_event_context_set_primary(void) {
+    struct screen_event_data ev;
+    screen_event_data_init(&ev);
+    ev.type = SCREEN_EVENT_CONTEXT_SET_PRIMARY;
     screen_event_data_push(&ev);
 }
 

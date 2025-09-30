@@ -1,5 +1,10 @@
 --- timed pattern event recorder/player
--- @module lib.pattern
+--
+-- The [norns script reference](https://monome.org/docs/norns/reference/)
+-- has [examples for this module](https://monome.org/docs/norns/reference/lib/pattern_time).
+--
+-- @module lib.pattern_time
+-- @alias pattern
 
 local pattern = {}
 pattern.__index = pattern
