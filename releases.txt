@@ -1,8 +1,8 @@
 releases = {
   stable = {
-    version="250530",
-    url="https://github.com/fates-project/norns/releases/download/v2.9.2/fates250530.tgz",
-    sha="https://github.com/fates-project/norns/releases/download/v2.9.2/fates250530.sha256"
+    version="250926",
+    url="https://github.com/fates-project/norns/releases/download/v2.9.3/fates250926.tgz",
+    sha="https://github.com/fates-project/norns/releases/download/v2.9.3/fates250926.sha256"
   },
   beta = {
     version="250926",
